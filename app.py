@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, render_template, request
+from define import get_contextual_definition
 from translator import TRACTATES, search_word_in_daf
 
 app = Flask(__name__)
@@ -41,6 +42,25 @@ def translate():
         "results": results,
         "total": len(results),
     })
+
+
+@app.route("/define", methods=["POST"])
+def define():
+    data = request.get_json()
+    word    = (data.get("word")    or "").strip()
+    aramaic = (data.get("aramaic") or "").strip()
+    english = (data.get("english") or "").strip()
+
+    if not word or not aramaic:
+        return jsonify({"error": "Word and passage are required."}), 400
+
+    try:
+        definition = get_contextual_definition(word, aramaic, english)
+        return jsonify({"definition": definition})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": f"AI error: {e}"}), 500
 
 
 if __name__ == "__main__":

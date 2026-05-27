@@ -133,6 +133,32 @@
       border-radius: 2px;
       padding: 0 1px;
     }
+
+    .define-btn {
+      margin-top: 0.8rem;
+      padding: 0.35rem 0.9rem;
+      background: transparent;
+      color: #7a3b10;
+      border: 1px solid #c4ad8a;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    .define-btn:hover { background: #f4ede0; }
+    .define-btn:disabled { color: #b89a7a; cursor: default; }
+
+    .definition-box {
+      margin-top: 0.7rem;
+      padding: 0.7rem 0.9rem;
+      background: #eaf4ea;
+      border-left: 3px solid #4a7c4a;
+      border-radius: 3px;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      color: #1e3a1e;
+    }
   </style>
 </head>
 <body>
@@ -266,15 +292,49 @@
     </p>`;
 
     for (const r of data.results) {
+      const id = `card-${r.segment}`;
       html += `
-        <div class="result-card">
+        <div class="result-card" id="${id}">
           <div class="result-meta">Segment ${r.segment}</div>
           <div class="aramaic">${highlight(r.aramaic, data.word)}</div>
           <div class="english">${r.english || '<em>(translation not available)</em>'}</div>
+          <button class="define-btn"
+            onclick="defineWord(this, '${esc(data.word)}', '${esc(r.aramaic)}', '${esc(r.english)}')">
+            What does ${esc(data.word)} mean here?
+          </button>
+          <div class="definition-box" style="display:none"></div>
         </div>`;
     }
 
     el.innerHTML = html;
+  }
+
+  async function defineWord(btn, word, aramaic, english) {
+    btn.disabled = true;
+    btn.textContent = 'Thinking…';
+    const box = btn.nextElementSibling;
+    box.style.display = 'none';
+
+    try {
+      const res  = await fetch('/define', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ word, aramaic, english }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        box.textContent = `Error: ${data.error}`;
+      } else {
+        box.textContent = data.definition;
+      }
+      box.style.display = 'block';
+      btn.style.display = 'none';
+    } catch (_) {
+      box.textContent = 'Network error.';
+      box.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = `What does ${word} mean here?`;
+    }
   }
 
   function highlight(html, word) {
