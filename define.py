@@ -13,7 +13,7 @@ def _get_model():
         if not api_key:
             raise RuntimeError("GOOGLE_API_KEY environment variable is not set.")
         genai.configure(api_key=api_key)
-        _model = genai.GenerativeModel("gemini-2.0-flash")
+        _model = genai.GenerativeModel("gemini-1.5-flash")
     return _model
 
 
