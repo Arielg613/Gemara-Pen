@@ -6,10 +6,11 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
+    max_daf = {name: info["max_daf"] for name, info in TRACTATES.items()}
     return render_template(
         "index.html",
         tractates=sorted(TRACTATES.keys()),
-        tractate_max_daf=TRACTATES,
+        tractate_max_daf=max_daf,
     )
 
 

@@ -1,80 +1,101 @@
 import re
+from urllib.parse import quote
+
 import requests
 
-SEFARIA_BASE = "https://www.sefaria.org/api/texts"
+GCS_BASE = "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli"
 
 TRACTATES = {
-    "Berakhot": 64,
-    "Shabbat": 157,
-    "Eruvin": 105,
-    "Pesachim": 121,
-    "Yoma": 88,
-    "Sukkah": 56,
-    "Beitzah": 40,
-    "Rosh Hashanah": 35,
-    "Taanit": 31,
-    "Megillah": 32,
-    "Moed Katan": 29,
-    "Chagigah": 27,
-    "Yevamot": 122,
-    "Ketubot": 112,
-    "Nedarim": 91,
-    "Nazir": 66,
-    "Sotah": 49,
-    "Gittin": 90,
-    "Kiddushin": 82,
-    "Bava Kamma": 119,
-    "Bava Metzia": 119,
-    "Bava Batra": 176,
-    "Sanhedrin": 113,
-    "Makkot": 24,
-    "Shevuot": 49,
-    "Avodah Zarah": 76,
-    "Horayot": 14,
-    "Niddah": 73,
+    "Berakhot":      {"seder": "Seder Zeraim",  "max_daf": 64},
+    "Shabbat":       {"seder": "Seder Moed",    "max_daf": 157},
+    "Eruvin":        {"seder": "Seder Moed",    "max_daf": 105},
+    "Pesachim":      {"seder": "Seder Moed",    "max_daf": 121},
+    "Yoma":          {"seder": "Seder Moed",    "max_daf": 88},
+    "Sukkah":        {"seder": "Seder Moed",    "max_daf": 56},
+    "Beitzah":       {"seder": "Seder Moed",    "max_daf": 40},
+    "Rosh Hashanah": {"seder": "Seder Moed",    "max_daf": 35},
+    "Taanit":        {"seder": "Seder Moed",    "max_daf": 31},
+    "Megillah":      {"seder": "Seder Moed",    "max_daf": 32},
+    "Moed Katan":    {"seder": "Seder Moed",    "max_daf": 29},
+    "Chagigah":      {"seder": "Seder Moed",    "max_daf": 27},
+    "Yevamot":       {"seder": "Seder Nashim",  "max_daf": 122},
+    "Ketubot":       {"seder": "Seder Nashim",  "max_daf": 112},
+    "Nedarim":       {"seder": "Seder Nashim",  "max_daf": 91},
+    "Nazir":         {"seder": "Seder Nashim",  "max_daf": 66},
+    "Sotah":         {"seder": "Seder Nashim",  "max_daf": 49},
+    "Gittin":        {"seder": "Seder Nashim",  "max_daf": 90},
+    "Kiddushin":     {"seder": "Seder Nashim",  "max_daf": 82},
+    "Bava Kamma":    {"seder": "Seder Nezikin", "max_daf": 119},
+    "Bava Metzia":   {"seder": "Seder Nezikin", "max_daf": 119},
+    "Bava Batra":    {"seder": "Seder Nezikin", "max_daf": 176},
+    "Sanhedrin":     {"seder": "Seder Nezikin", "max_daf": 113},
+    "Makkot":        {"seder": "Seder Nezikin", "max_daf": 24},
+    "Shevuot":       {"seder": "Seder Nezikin", "max_daf": 49},
+    "Avodah Zarah":  {"seder": "Seder Nezikin", "max_daf": 76},
+    "Horayot":       {"seder": "Seder Nezikin", "max_daf": 14},
+    "Niddah":        {"seder": "Seder Taharot", "max_daf": 73},
 }
 
+# In-memory cache so we only download each tractate once per session
+_cache: dict = {}
 
-def strip_nikud(text):
-    """Remove vowel points and cantillation marks so bare letters match."""
+
+def _gcs_url(tractate: str, language: str) -> str:
+    seder = TRACTATES[tractate]["seder"]
+    return f"{GCS_BASE}/{quote(seder)}/{quote(tractate)}/{quote(language)}/merged.json"
+
+
+def _load_tractate(tractate: str) -> dict:
+    if tractate in _cache:
+        return _cache[tractate]
+
+    heb_url = _gcs_url(tractate, "Hebrew")
+    eng_url = _gcs_url(tractate, "English")
+
+    heb = requests.get(heb_url, timeout=30)
+    heb.raise_for_status()
+    eng = requests.get(eng_url, timeout=30)
+    eng.raise_for_status()
+
+    _cache[tractate] = {
+        "he": heb.json()["text"],
+        "en": eng.json()["text"],
+    }
+    return _cache[tractate]
+
+
+def strip_nikud(text: str) -> str:
+    """Strip vowel points and cantillation marks so bare letters match pointed text."""
     return re.sub(r"[֑-ׇ]", "", text)
 
 
-def _flatten(lst):
-    """Sefaria sometimes returns nested lists; flatten to a list of strings."""
-    result = []
-    for item in lst:
-        if isinstance(item, list):
-            result.extend(_flatten(item))
-        elif isinstance(item, str):
-            result.append(item)
-    return result
+def search_word_in_daf(word: str, tractate: str, daf: str, amud: str = "a") -> list:
+    """Return all segments of a daf that contain the search word.
 
+    The GCS data stores each daf as a unit (both a and b sides combined),
+    so amud is accepted for API compatibility but the full daf is always searched.
+    """
+    data = _load_tractate(tractate)
+    daf_idx = int(daf)
 
-def fetch_daf(tractate, daf, amud):
-    ref = f"{tractate.replace(' ', '_')}.{daf}{amud}"
-    url = f"{SEFARIA_BASE}/{ref}"
-    resp = requests.get(url, params={"context": 0}, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    heb_list = data["he"]
+    eng_list = data["en"]
 
+    if daf_idx >= len(heb_list):
+        return []
 
-def search_word_in_daf(word, tractate, daf, amud):
-    """Return all segments from a daf that contain the search word."""
-    data = fetch_daf(tractate, daf, amud)
-
-    aramaic_segments = _flatten(data.get("he", []))
-    english_segments = _flatten(data.get("text", []))
+    heb_daf = heb_list[daf_idx] or []
+    eng_daf = eng_list[daf_idx] if daf_idx < len(eng_list) else []
 
     needle = strip_nikud(word)
-
     results = []
-    for i, aram in enumerate(aramaic_segments):
-        if needle in strip_nikud(aram):
-            eng = english_segments[i] if i < len(english_segments) else ""
+
+    for i, heb in enumerate(heb_daf):
+        if isinstance(heb, str) and needle in strip_nikud(heb):
+            eng = eng_daf[i] if i < len(eng_daf) and isinstance(eng_daf[i], str) else ""
             results.append({
                 "segment": i + 1,
-                "aramaic": aram,
+                "aramaic": heb,
                 "english": eng,
             })
 
