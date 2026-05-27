@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemara Pen</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      background: #f4ede0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      color: #2c1810;
+    }
+
+    .container { max-width: 820px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 { font-size: 2.2rem; letter-spacing: 0.02em; }
+    header p  { color: #7a5c3a; font-style: italic; margin-top: 0.3rem; }
+
+    .card {
+      background: #fffdf7;
+      border: 1px solid #d4c4a8;
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .field.grow { flex: 1; min-width: 160px; }
+
+    label { font-size: 0.8rem; font-weight: bold; color: #5a3e28; letter-spacing: 0.04em; text-transform: uppercase; }
+
+    input, select {
+      padding: 0.55rem 0.75rem;
+      border: 1px solid #c4ad8a;
+      border-radius: 4px;
+      background: #fdfaf4;
+      font-family: inherit;
+      font-size: 1rem;
+      color: #2c1810;
+    }
+
+    #word {
+      direction: rtl;
+      font-size: 1.4rem;
+      font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruehl CLM', 'Times New Roman', serif;
+      letter-spacing: 0.05em;
+    }
+
+    button {
+      padding: 0.6rem 1.6rem;
+      background: #7a3b10;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 1rem;
+      cursor: pointer;
+      align-self: flex-end;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    button:hover  { background: #9a4d1a; }
+    button:active { background: #5e2d0c; }
+    button:disabled { background: #b89a7a; cursor: not-allowed; }
+
+    #status {
+      text-align: center;
+      font-style: italic;
+      color: #7a5c3a;
+      min-height: 1.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-count { color: #5a3e28; font-weight: bold; margin-bottom: 1rem; }
+
+    .result-card {
+      background: #fffdf7;
+      border: 1px solid #d4c4a8;
+      border-left: 4px solid #7a3b10;
+      border-radius: 4px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .result-meta { font-size: 0.75rem; color: #a08060; margin-bottom: 0.6rem; }
+
+    .aramaic {
+      direction: rtl;
+      font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruehl CLM', 'Times New Roman', serif;
+      font-size: 1.25rem;
+      line-height: 2;
+      background: #f4ede0;
+      padding: 0.6rem 0.8rem;
+      border-radius: 3px;
+      margin-bottom: 0.8rem;
+      color: #1a1008;
+    }
+
+    .english {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #3a2a1a;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: #9a7a5a;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Gemara Pen</h1>
+    <p>Context-aware Aramaic dictionary &mdash; powered by Sefaria</p>
+  </header>
+
+  <div class="card">
+    <div class="form-row">
+
+      <div class="field grow">
+        <label for="word">Aramaic Word</label>
+        <input id="word" type="text" placeholder="e.g. מַלְכָּא" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="field grow">
+        <label for="tractate">Tractate</label>
+        <select id="tractate"></select>
+      </div>
+
+      <div class="field">
+        <label for="daf">Daf</label>
+        <select id="daf"></select>
+      </div>
+
+      <div class="field">
+        <label for="amud">Amud</label>
+        <select id="amud">
+          <option value="a">a</option>
+          <option value="b">b</option>
+        </select>
+      </div>
+
+      <button id="btn" onclick="doSearch()">Search</button>
+
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <div id="results"></div>
+
+</div>
+
+<script>
+  const TRACTATES = {{ tractate_max_daf | tojson }};
+
+  const tractateSelect = document.getElementById('tractate');
+  const dafSelect      = document.getElementById('daf');
+
+  // Populate tractate dropdown
+  Object.keys(TRACTATES).sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    tractateSelect.appendChild(opt);
+  });
+
+  function refreshDaf() {
+    const maxDaf = TRACTATES[tractateSelect.value] || 64;
+    dafSelect.innerHTML = '';
+    for (let d = 2; d <= maxDaf; d++) {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d;
+      dafSelect.appendChild(opt);
+    }
+  }
+  tractateSelect.addEventListener('change', refreshDaf);
+  refreshDaf();
+
+  document.getElementById('word').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  async function doSearch() {
+    const word     = document.getElementById('word').value.trim();
+    const tractate = tractateSelect.value;
+    const daf      = dafSelect.value;
+    const amud     = document.getElementById('amud').value;
+    const btn      = document.getElementById('btn');
+    const status   = document.getElementById('status');
+    const results  = document.getElementById('results');
+
+    if (!word) { status.textContent = 'Enter a word first.'; return; }
+
+    btn.disabled   = true;
+    status.textContent = `Fetching ${tractate} ${daf}${amud} from Sefaria…`;
+    results.innerHTML  = '';
+
+    try {
+      const res  = await fetch('/translate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ word, tractate, daf, amud }),
+      });
+      const data = await res.json();
+
+      status.textContent = '';
+
+      if (data.error) {
+        status.textContent = `Error: ${data.error}`;
+        return;
+      }
+
+      renderResults(data);
+
+    } catch (_) {
+      status.textContent = 'Network error — check your connection.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderResults(data) {
+    const el = document.getElementById('results');
+
+    if (!data.results.length) {
+      el.innerHTML = `<div class="empty">
+        No passages found containing <strong>${esc(data.word)}</strong>
+        in ${esc(data.tractate)} ${esc(data.daf)}.
+      </div>`;
+      return;
+    }
+
+    let html = `<p class="result-count">
+      ${data.total} passage${data.total !== 1 ? 's' : ''} found in
+      ${esc(data.tractate)} ${esc(data.daf)}
+    </p>`;
+
+    for (const r of data.results) {
+      html += `
+        <div class="result-card">
+          <div class="result-meta">Segment ${r.segment}</div>
+          <div class="aramaic">${r.aramaic}</div>
+          <div class="english">${r.english || '<em>(translation not available)</em>'}</div>
+        </div>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>
