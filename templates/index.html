@@ -126,6 +126,13 @@
       color: #9a7a5a;
       font-style: italic;
     }
+
+    mark {
+      background: #f5d76e;
+      color: inherit;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
   </style>
 </head>
 <body>
@@ -262,12 +269,24 @@
       html += `
         <div class="result-card">
           <div class="result-meta">Segment ${r.segment}</div>
-          <div class="aramaic">${r.aramaic}</div>
+          <div class="aramaic">${highlight(r.aramaic, data.word)}</div>
           <div class="english">${r.english || '<em>(translation not available)</em>'}</div>
         </div>`;
     }
 
     el.innerHTML = html;
+  }
+
+  function highlight(html, word) {
+    // Strip nikud from the search word, then build a regex that matches
+    // those letters even when nikud appears between them in the text.
+    const bare = word.replace(/[֑-ׇ]/g, '');
+    if (!bare) return html;
+    const letters = [...bare].map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = letters.join('[\\u0591-\\u05C7]*');
+    // The (<[^>]*>) part skips over HTML tags so we never break them.
+    const re = new RegExp(`(<[^>]*>)|(${pattern})`, 'g');
+    return html.replace(re, (match, tag) => tag ? tag : `<mark>${match}</mark>`);
   }
 
   function esc(str) {
