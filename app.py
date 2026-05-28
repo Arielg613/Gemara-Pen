@@ -2,7 +2,7 @@ import requests
 from flask import Flask, jsonify, render_template, request
 from define import get_contextual_definition
 from jastrow import lookup as jastrow_lookup
-from translator import TRACTATES, search_word_in_daf, search_word_in_tractate
+from translator import TRACTATES, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
 
 app = Flask(__name__)
 
@@ -27,10 +27,26 @@ def translate():
 
     if not word:
         return jsonify({"error": "Please enter a word."}), 400
-    if tractate not in TRACTATES:
-        return jsonify({"error": f"Unknown tractate: {tractate}"}), 400
     if amud not in ("a", "b"):
         return jsonify({"error": "Amud must be a or b."}), 400
+
+    # "all" means search every tractate
+    if tractate == "all":
+        try:
+            results = search_word_in_all_tractates(word)
+        except Exception as e:
+            return jsonify({"error": f"Sefaria error: {e}"}), 502
+        return jsonify({
+            "word": word,
+            "tractate": "All Tractates",
+            "daf": "",
+            "results": results,
+            "total": len(results),
+            "all_tractates": True,
+        })
+
+    if tractate not in TRACTATES:
+        return jsonify({"error": f"Unknown tractate: {tractate}"}), 400
 
     try:
         if daf:
@@ -48,6 +64,7 @@ def translate():
         "daf": location,
         "results": results,
         "total": len(results),
+        "all_tractates": False,
     })
 
 

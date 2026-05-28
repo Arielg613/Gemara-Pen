@@ -271,6 +271,12 @@
   const tractateSelect = document.getElementById('tractate');
   const dafSelect      = document.getElementById('daf');
 
+  // "All Tractates" sentinel option
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = '📚 All Tractates';
+  tractateSelect.appendChild(allOpt);
+
   Object.keys(TRACTATES).sort().forEach(name => {
     const opt = document.createElement('option');
     opt.value = name;
@@ -279,6 +285,10 @@
   });
 
   function refreshDaf() {
+    const isAll = tractateSelect.value === 'all';
+    dafSelect.disabled = isAll;
+    document.getElementById('amud').disabled = isAll;
+    if (isAll) { dafSelect.innerHTML = '<option value="">—</option>'; return; }
     const maxDaf = TRACTATES[tractateSelect.value] || 64;
     dafSelect.innerHTML = '<option value="">All daf</option>';
     for (let d = 2; d <= maxDaf; d++) {
@@ -366,7 +376,8 @@
     if (!word) { status.textContent = 'Enter a word first.'; return; }
 
     btn.disabled = true;
-    const loc = daf ? `${tractate} ${daf}${amud}` : `all of ${tractate}`;
+    const loc = tractate === 'all' ? 'all tractates (may take a moment…)'
+              : daf ? `${tractate} ${daf}${amud}` : `all of ${tractate}`;
     status.textContent = `Searching ${loc}…`;
     results.innerHTML = '';
 
@@ -394,18 +405,21 @@
 
     if (!data.results.length) {
       el.innerHTML = `<div class="empty">
-        No passages found for <strong>${esc(data.word)}</strong> in ${esc(data.tractate)} ${esc(data.daf)}.
+        No passages found for <strong>${esc(data.word)}</strong> in ${esc(data.tractate)}${data.daf ? ' ' + esc(data.daf) : ''}.
       </div>`;
       return;
     }
 
-    let html = `<p class="result-count">${data.total} passage${data.total !== 1 ? 's' : ''} in ${esc(data.tractate)} ${esc(data.daf)}</p>`;
+    const scope = data.daf ? `${esc(data.tractate)} ${esc(data.daf)}` : esc(data.tractate);
+    let html = `<p class="result-count">${data.total} passage${data.total !== 1 ? 's' : ''} in ${scope}</p>`;
 
     for (const r of data.results) {
-      const dafLabel = r.daf ? ` · Daf ${r.daf}` : '';
+      const tractateLabel = data.all_tractates && r.tractate ? esc(r.tractate) + ' · ' : '';
+      const dafLabel = r.daf ? `Daf ${r.daf}` : '';
+      const metaLine = tractateLabel + (dafLabel ? dafLabel + ` · Segment ${r.segment}` : `Segment ${r.segment}`);
       html += `
         <div class="result-card">
-          <div class="result-meta">Segment ${r.segment}${dafLabel}</div>
+          <div class="result-meta">${metaLine}</div>
           <div class="aramaic">${highlight(r.aramaic, data.word)}</div>
           <div class="english">${r.english || '<em>(translation not available)</em>'}</div>
         </div>`;

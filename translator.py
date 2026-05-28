@@ -31,9 +31,18 @@ TRACTATES = {
     "Sanhedrin":     {"seder": "Seder Nezikin", "max_daf": 113},
     "Makkot":        {"seder": "Seder Nezikin", "max_daf": 24},
     "Shevuot":       {"seder": "Seder Nezikin", "max_daf": 49},
-    "Avodah Zarah":  {"seder": "Seder Nezikin", "max_daf": 76},
-    "Horayot":       {"seder": "Seder Nezikin", "max_daf": 14},
-    "Niddah":        {"seder": "Seder Taharot", "max_daf": 73},
+    "Avodah Zarah":  {"seder": "Seder Nezikin",  "max_daf": 76},
+    "Horayot":       {"seder": "Seder Nezikin",  "max_daf": 14},
+    "Zevachim":      {"seder": "Seder Kodashim", "max_daf": 120},
+    "Menachot":      {"seder": "Seder Kodashim", "max_daf": 110},
+    "Chullin":       {"seder": "Seder Kodashim", "max_daf": 142},
+    "Bekhorot":      {"seder": "Seder Kodashim", "max_daf": 61},
+    "Arakhin":       {"seder": "Seder Kodashim", "max_daf": 34},
+    "Temurah":       {"seder": "Seder Kodashim", "max_daf": 34},
+    "Keritot":       {"seder": "Seder Kodashim", "max_daf": 28},
+    "Meilah":        {"seder": "Seder Kodashim", "max_daf": 22},
+    "Tamid":         {"seder": "Seder Kodashim", "max_daf": 33},
+    "Niddah":        {"seder": "Seder Taharot",  "max_daf": 73},
 }
 
 # In-memory cache so we only download each tractate once per session
@@ -92,6 +101,22 @@ def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> 
                 })
                 if len(results) >= max_results:
                     return results
+    return results
+
+
+def search_word_in_all_tractates(word: str, max_per_tractate: int = 5, max_total: int = 60) -> list:
+    """Search every tractate and return up to max_total combined results."""
+    results = []
+    for tractate in sorted(TRACTATES.keys()):
+        if len(results) >= max_total:
+            break
+        try:
+            matches = search_word_in_tractate(word, tractate, max_results=max_per_tractate)
+            for m in matches:
+                m["tractate"] = tractate
+                results.append(m)
+        except Exception:
+            continue
     return results
 
 
