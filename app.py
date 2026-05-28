@@ -2,7 +2,7 @@ import requests
 from flask import Flask, jsonify, render_template, request
 from define import get_contextual_definition
 from jastrow import lookup as jastrow_lookup
-from translator import TRACTATES, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
+from translator import TRACTATES, _cache as _tractate_cache, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
 
 app = Flask(__name__)
 
@@ -104,6 +104,36 @@ def lookup():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/precache", methods=["POST"])
+def precache():
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    total = len(TRACTATES)
+    already = len(_tractate_cache)
+
+    def _load(name):
+        try:
+            _load_tractate(name)
+            return name, None
+        except Exception as e:
+            return name, str(e)
+
+    errors = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(_load, name) for name in TRACTATES]
+        for fut in as_completed(futures):
+            name, err = fut.result()
+            if err:
+                errors.append(name)
+
+    loaded = len(_tractate_cache)
+    return jsonify({
+        "loaded": loaded,
+        "total": total,
+        "already_cached": already,
+        "errors": errors,
+    })
 
 
 if __name__ == "__main__":

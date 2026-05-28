@@ -87,6 +87,36 @@
     .lookup-btn:hover   { background: #9a4d1a; }
     .lookup-btn:disabled { background: #b89a7a; cursor: not-allowed; }
 
+    /* Pre-cache bar */
+    .precache-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      padding: 0.55rem 0.8rem;
+      background: #f0e6d4;
+      border: 1px solid #c4ad8a;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #5a3e28;
+    }
+    .precache-btn {
+      padding: 0.35rem 0.9rem;
+      background: #4a7c4a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .precache-btn:hover    { background: #3a6c3a; }
+    .precache-btn:disabled { background: #8ab08a; cursor: not-allowed; }
+    .precache-msg { flex: 1; }
+
     /* Search panel */
     .filters {
       display: flex;
@@ -223,6 +253,10 @@
 
   <!-- Search Passages panel -->
   <div id="panel-search" class="panel">
+    <div class="precache-bar">
+      <button class="precache-btn" id="precache-btn" onclick="doPreCache()">⚡ Pre-load All</button>
+      <span class="precache-msg" id="precache-msg">Load all 37 tractates into memory for instant searches</span>
+    </div>
     <div class="filters">
 
       <div class="field grow">
@@ -426,6 +460,27 @@
     }
 
     el.innerHTML = html;
+  }
+
+  // --- Pre-cache ---
+  async function doPreCache() {
+    const btn = document.getElementById('precache-btn');
+    const msg = document.getElementById('precache-msg');
+    btn.disabled = true;
+    msg.textContent = 'Downloading all tractates… (20–30 seconds)';
+    try {
+      const res  = await fetch('/precache', { method: 'POST' });
+      const data = await res.json();
+      if (data.errors && data.errors.length) {
+        msg.textContent = `✓ ${data.loaded}/${data.total} tractates loaded (${data.errors.length} failed: ${data.errors.join(', ')})`;
+      } else {
+        msg.textContent = `✓ All ${data.loaded} tractates loaded — searches are now instant!`;
+        btn.textContent = '✓ Loaded';
+      }
+    } catch (_) {
+      msg.textContent = 'Failed to pre-load. Try again.';
+      btn.disabled = false;
+    }
   }
 
   // --- Helpers ---
