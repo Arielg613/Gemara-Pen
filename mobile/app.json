@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Gemara Pen",
+    "slug": "gemara-pen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gemarapen.app"
+    },
+    "android": {
+      "package": "com.gemarapen.app",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Gemara Pen to access your camera to scan Hebrew words."
+        }
+      ]
+    ]
+  }
+}
