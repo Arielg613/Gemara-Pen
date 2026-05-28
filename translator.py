@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
 
 import requests
@@ -105,19 +106,33 @@ def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> 
 
 
 def search_word_in_all_tractates(word: str, max_per_tractate: int = 5, max_total: int = 60) -> list:
-    """Search every tractate and return up to max_total combined results."""
-    results = []
-    for tractate in sorted(TRACTATES.keys()):
-        if len(results) >= max_total:
-            break
+    """Search every tractate in parallel, return up to max_total combined results."""
+    tractate_names = sorted(TRACTATES.keys())
+
+    def _search_one(name):
         try:
-            matches = search_word_in_tractate(word, tractate, max_results=max_per_tractate)
+            matches = search_word_in_tractate(word, name, max_results=max_per_tractate)
             for m in matches:
-                m["tractate"] = tractate
-                results.append(m)
+                m["tractate"] = name
+            return matches
         except Exception:
-            continue
-    return results
+            return []
+
+    all_results = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(_search_one, t): t for t in tractate_names}
+        tractate_order = {t: i for i, t in enumerate(tractate_names)}
+        collected = {}
+        for fut in as_completed(futures):
+            name = futures[fut]
+            collected[name] = fut.result()
+
+    for name in tractate_names:
+        all_results.extend(collected.get(name, []))
+        if len(all_results) >= max_total:
+            break
+
+    return all_results[:max_total]
 
 
 def search_word_in_daf(word: str, tractate: str, daf: str, amud: str = "a") -> list:
