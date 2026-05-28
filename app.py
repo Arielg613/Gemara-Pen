@@ -127,15 +127,15 @@ def lookup():
     try:
         result = jastrow_analyze(word)
         resp = {
-            "word": word,
-            "entries": result["entries"],
-            "found": result["found"],
+            "word":       word,
+            "found":      result["found"],
             "match_type": result["match_type"],
+            "gloss":      result.get("gloss", ""),
+            "entries":    result["entries"],
         }
         if result.get("morphology"):
             resp["morphology"] = result["morphology"]
         return jsonify(resp)
-        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

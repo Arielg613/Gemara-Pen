@@ -86,6 +86,104 @@ _SAFE_PREFIXES = {
 }
 
 
+# ── Quick-gloss overrides ────────────────────────────────────────────────────
+# Jastrow (1903) was written before modern study of Babylonian Talmudic Aramaic.
+# For the ~60 most common Talmudic discourse words it either has the wrong sense,
+# no entry at all, or a definition buried in irrelevant detail.
+# These one-line glosses take precedence over anything extracted from Jastrow.
+# Keys are unvoweled (nikud-stripped).
+_QUICK_GLOSSES: dict[str, str] = {
+    # ── Discourse / logic particles ──────────────────────────────────────────
+    "מאי":        "what?",
+    "מאן":        "who?",
+    "היכי":       "how?",
+    "הכי":        "so; thus; in this way",
+    "הכא":        "here",
+    "התם":        "there",
+    "מנלן":       "from where do we derive?",
+    "מנא":        "from where?",
+    "מדאורייתא":  "from Torah law",
+    "מדרבנן":     "from rabbinic law",
+    "פשיטא":      "obviously; it is clear",
+    "תיקו":       "unresolved (left standing)",
+    "קשיא":       "difficulty; objection",
+    "ניחא":       "fine; acceptable; easy",
+    "אדרבה":      "on the contrary",
+    "אדרבא":      "on the contrary",
+    "סייעתא":     "support; corroboration",
+    "תיובתא":     "refutation",
+    "תיובתיה":    "it refutes him",
+    "מיבעיא":     "the question is whether...",
+    "בעיא":       "question; unresolved inquiry",
+    "איבעיא":     "a question was raised",
+    "הוה אמינא":  "I would have thought",
+    "קא משמע לן": "this teaches us",
+    "קמשמע לן":   "this teaches us",
+    "לאו":        "no; not (emphatic)",
+    "אין":        "yes",
+    "אלא":        "rather; but",
+    "דאמר":       "who said; as he said",
+    # ── Existence ────────────────────────────────────────────────────────────
+    "איכא":       "there is; there are",
+    "ליכא":       "there is not",
+    "איתא":       "it exists; it is so",
+    "ליתא":       "it does not exist; it is not so",
+    "כמה":        "how much; how many",
+    # ── Key Aramaic nouns ────────────────────────────────────────────────────
+    "טעמא":       "reason; rationale",
+    "סלקא":       "it arises; it would seem",
+    "הלכתא":      "the law; the ruling",
+    "כהנא":       "the priest",
+    "דינא":       "law; judgment; case",
+    "מלכא":       "the king",
+    "מלכתא":      "the queen",
+    "ממון":       "money; property; monetary matters",
+    "ממונא":      "money; property",
+    "פלגא":       "half",
+    "גופא":       "the main point; the body itself",
+    "מילתא":      "a matter; a word; a thing",
+    "שמעתא":      "a teaching; a tradition",
+    "סוגיא":      "Talmudic discussion; passage",
+    "תקנתא":      "rabbinic enactment",
+    "איתתא":      "woman",
+    "גברא":       "man; person",
+    "ינוקא":      "child; infant",
+    "ריש":        "head; beginning; chief",
+    "גט":         "bill of divorce; legal document",
+    "שבת":        "Sabbath; to rest",
+    # ── Common verbs in Aramaic form ─────────────────────────────────────────
+    "קאמר":       "he says; is saying",
+    "קאמרינן":    "we are saying",
+    "אמרינן":     "we say",
+    "תנינא":      "we have learned (in Mishnah)",
+    "שמעינן":     "we derive; we learn from this",
+    "מתקיף":      "objects; challenges",
+    "מסייע":      "supports; aids",
+    "פריך":       "raises an objection",
+    "מפרק":       "resolves; answers",
+    "לאתויי":     "to include; to bring",
+    "אמר ליה":    "he said to him",
+    "אמרה ליה":   "she said to him",
+}
+
+# ── Regex patterns for distill() ─────────────────────────────────────────────
+# Matches the start of a Talmudic citation.
+# First char class includes Ḥ/Ṭ/Ṣ (used in Jastrow: Ḥull., Ṭar., etc.)
+_CITATION_RE = re.compile(
+    r'[A-ZḥḤṭṬṣṢẒ][a-zA-ZḥḤṭṬṣṢẒ]{1,8}\.\s+(?:[IVXLCDM]+|\d)'
+    r'|(?<!\w)(?:Ib|Ibid)\.\s'
+    r'|\ba\.\s*(?:fr|e|v)\b'
+    r'|\bv\.\s+[א-ת]'
+    r'|\bv\.\s+[A-Z]',
+    re.UNICODE,
+)
+_LEAD_RE = re.compile(
+    r'^(?:,\s*|—\s*|\(b\.\s*h\.\)\s*|\(Hebr\.\)\s*|ch\.\s*)+'
+)
+# Sentence-end before a citation: ". " followed by capital or special chars
+_SENT_END_RE = re.compile(r'\.\s+(?=[A-ZḥḤṭṬṣṢẒא-ת])')
+
+
 def strip_nikud(text: str) -> str:
     """Remove Hebrew vowel points and cantillation marks; trim whitespace."""
     return re.sub(r"[֑-ׇ]", "", text).strip()
@@ -96,6 +194,76 @@ def _finalize(stem: str) -> str:
     if stem and stem[-1] in _TO_FINAL:
         return stem[:-1] + _TO_FINAL[stem[-1]]
     return stem
+
+
+def distill(defn: str) -> str:
+    """Extract a short (≤55 char) plain-English gloss from a Jastrow definition.
+
+    Strips citations, cross-references, etymology, and Talmudic examples,
+    leaving only the core meaning suitable for display on a small screen.
+    Returns an empty string if no clean gloss can be extracted.
+    """
+    s = defn.strip()
+
+    # Pure cross-reference entry: ", v. X" — no gloss here
+    if re.match(r'^,?\s*v\.\s', s):
+        return ""
+
+    # Strip leading noise (commas, em-dashes, language markers)
+    s = _LEAD_RE.sub('', s).strip()
+
+    # Strip leading Targ. citation block (Aramaic entries often open with one)
+    s = re.sub(r'^Targ\.[A-Za-zḥḤ\s\.]+?(?=[a-z\[])', '', s).strip()
+
+    # Strip leading etymology in parens: (contr. of X), (cmp. X), (= אֵי a. כָּא)
+    m = re.match(r'^\(([^)]{1,120})\)\s*', s)
+    if m and re.search(r'[א-ת]|cmp\.|contr\.|preced\.|denom\.', m.group(1)):
+        s = s[m.end():].strip()
+
+    # Extract bracket gloss: [engraving,] or [to be still,]
+    bracket = ""
+    m = re.match(r'^\[([^\]]{1,80})\]\.?\s*', s)
+    if m:
+        b = m.group(1).rstrip('.,').strip()
+        if not re.search(r'[A-Z][a-z]+\.\s', b):  # skip if it's a citation
+            bracket = b
+        s = s[m.end():].strip()
+
+    # Cut at the first Talmudic citation
+    cm = _CITATION_RE.search(s)
+    if cm:
+        s = s[:cm.start()].strip()
+
+    # Cut at sentence boundary (". " before capital/Hebrew — the definition
+    # sentence ends and citations / examples begin)
+    sm = _SENT_END_RE.search(s)
+    if sm:
+        s = s[:sm.start()].strip()
+
+    # Cut at em-dash (separates sub-entries like "—ג׳ אשה letter of divorce")
+    s = s.split('—')[0].strip()
+
+    # Cut at semicolon (take primary meaning only)
+    s = s.split(';')[0].strip()
+
+    # Cut before grammatical annotations
+    s = re.split(r'\bPl\.\s|\bSing\.\s|\bPart\.\s|\bInf\.\s', s)[0].strip()
+
+    # Strip ANY trailing parenthetical: "value (in Greek writers: Mammon)"
+    s = re.sub(r'\s*\([^)]+\)\s*$', '', s).strip()
+
+    # Clean trailing punctuation
+    s = s.rstrip('.,;:— ')
+
+    # Prefer the main text (s) over the bracket (which is usually etymology)
+    gloss = s if s else bracket
+
+    # Hard length limit
+    if len(gloss) > 55:
+        cut = gloss[:55].rfind(',')
+        gloss = gloss[:cut].rstrip() if cut > 12 else gloss[:55].rstrip() + '…'
+
+    return gloss
 
 
 def _load() -> None:
@@ -345,14 +513,27 @@ def analyze(word: str) -> dict:
     if key in _cache:
         return _cache[key]
 
+    # Check quick-gloss overrides first (common Talmudic words Jastrow misses)
+    quick = _QUICK_GLOSSES.get(key)
+
     entries, match_type, morphology = _resolve(key)
     tagged = [{**e, "lang": detect_language(e)} for e in entries]
+
+    # Build the short gloss: quick override > distilled Jastrow > empty
+    if quick:
+        gloss = quick
+    elif tagged:
+        gloss = distill(tagged[0]["def"])
+    else:
+        gloss = ""
+
     result = {
-        "query": word,
+        "query":      word,
         "normalized": key,
-        "found": bool(tagged),
-        "match_type": match_type,
-        "entries": tagged,
+        "found":      bool(tagged) or bool(quick),
+        "match_type": match_type if tagged else ("quick" if quick else "none"),
+        "gloss":      gloss,
+        "entries":    tagged,
     }
     if morphology:
         result["morphology"] = morphology
