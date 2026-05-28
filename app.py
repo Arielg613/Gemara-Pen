@@ -1,9 +1,22 @@
+"""
+Gemara Pen — web layer (online phone-test harness + REST API).
+
+This wraps the offline BRAIN (jastrow.py) in a Flask API and serves the
+web UI. The Sefaria passage search (translator.py) lives here too and DOES
+need internet. The dictionary lookup itself does not.
+
+Endpoints:
+  GET  /                  the web UI
+  POST /lookup            dictionary lookup (the brain)        {word}
+  POST /translate         passage search via Sefaria           {word, tractate, daf, amud}
+  POST /precache          warm the tractate cache (background)
+  GET  /precache/status   progress of /precache
+"""
+
 import threading
-import requests
 from flask import Flask, jsonify, render_template, request
-from define import get_contextual_definition
-from jastrow import lookup as jastrow_lookup
-from translator import TRACTATES, _cache as _tractate_cache, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
+from jastrow import analyze as jastrow_analyze
+from translator import TRACTATES, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
 
 app = Flask(__name__)
 
@@ -103,25 +116,6 @@ def translate():
     })
 
 
-@app.route("/define", methods=["POST"])
-def define():
-    data = request.get_json()
-    word    = (data.get("word")    or "").strip()
-    aramaic = (data.get("aramaic") or "").strip()
-    english = (data.get("english") or "").strip()
-
-    if not word or not aramaic:
-        return jsonify({"error": "Word and passage are required."}), 400
-
-    try:
-        definition = get_contextual_definition(word, aramaic, english)
-        return jsonify({"definition": definition})
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 503
-    except Exception as e:
-        return jsonify({"error": f"AI error: {e}"}), 500
-
-
 @app.route("/lookup", methods=["POST"])
 def lookup():
     data = request.get_json()
@@ -131,33 +125,15 @@ def lookup():
         return jsonify({"error": "Please enter a word."}), 400
 
     try:
-        entries = jastrow_lookup(word)
+        result = jastrow_analyze(word)
         return jsonify({
             "word": word,
-            "entries": [_tag_language(e) for e in entries],
-            "found": len(entries) > 0,
+            "entries": result["entries"],
+            "found": result["found"],
+            "match_type": result["match_type"],
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-def _tag_language(entry: dict) -> dict:
-    """Add a 'lang' field to a Jastrow entry based on definition markers."""
-    defn = entry.get("def", "")
-    is_hebrew  = "(b. h.)" in defn or "(Hebr.)" in defn
-    is_aramaic = bool(
-        " ch." in defn or defn.startswith("ch.")
-        or "Targ." in defn or "Targ." in entry.get("hw", "")
-    )
-    if is_hebrew and is_aramaic:
-        lang = "both"
-    elif is_hebrew:
-        lang = "hebrew"
-    elif is_aramaic:
-        lang = "aramaic"
-    else:
-        lang = "unknown"
-    return {**entry, "lang": lang}
 
 
 @app.route("/precache", methods=["POST"])

@@ -1,13 +1,36 @@
+"""
+Gemara Pen — THE BRAIN (offline dictionary engine).
+
+This module is fully self-contained and has NO network dependency. Given a
+single Aramaic/Hebrew word, it returns Jastrow dictionary definitions plus a
+detected language tag (Hebrew / Aramaic / both).
+
+It is the part that runs ON the pen. To port it to the device you need only:
+  1. This file (jastrow.py)
+  2. The bundled dictionary data (data/jastrow.json)
+
+Public API:
+  analyze(word)  -> dict   full structured result (recommended for the pen)
+  lookup(word)   -> list   just the matching entries (convenience)
+  detect_language(entry) -> "hebrew" | "aramaic" | "both" | "unknown"
+  strip_nikud(text) -> str  remove vowel points / cantillation
+
+How a word is resolved (in order):
+  1. exact   — the word is a headword as typed
+  2. root    — strip Aramaic/Hebrew prefixes & suffixes to find the root
+  3. prefix  — partial match (user typed the start of a root)
+"""
+
 import json
 import os
 import re
 
 _index: dict | None = None
-_cache: dict = {}   # word → lookup result, so each word is only processed once
+_cache: dict = {}   # normalized word → analyze() result (computed once per word)
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "jastrow.json")
 
-# Common Aramaic/Hebrew prefixes and suffixes to strip when looking for a root.
-# Order matters — try longer ones first to avoid partial stripping.
+# Aramaic/Hebrew prefixes and suffixes to strip when looking for a root.
+# Order matters — longer ones are tried first to avoid partial stripping.
 _PREFIXES = [
     # Ithpeal/Ithpaal reflexive-passive binyan prefix (longer first)
     "אית", "את",
@@ -37,12 +60,16 @@ _SUFFIXES = [
     "א", "ה", "ת", "ן", "י", "ו",
 ]
 
+# Matches Jastrow cross-reference definitions like ", v. רָקַק" or "v. רוֹק, רֵיק."
+_XREF_RE = re.compile(r'^,?\s*v\.\s+([א-תְ-ׇ\s,\.]+)', re.UNICODE)
+
 
 def strip_nikud(text: str) -> str:
+    """Remove Hebrew vowel points and cantillation marks; trim whitespace."""
     return re.sub(r"[֑-ׇ]", "", text).strip()
 
 
-def _load():
+def _load() -> None:
     global _index
     if _index is None:
         with open(_DATA_PATH, encoding="utf-8") as f:
@@ -53,21 +80,38 @@ def _exact(key: str) -> list:
     return _index.get(key, [])
 
 
-# Matches Jastrow cross-reference definitions like ", v. רָקַק" or "v. רוֹק, רֵיק."
-_XREF_RE = re.compile(r'^,?\s*v\.\s+([א-תְ-ׇ\s,\.]+)', re.UNICODE)
+def detect_language(entry: dict) -> str:
+    """Classify an entry as hebrew / aramaic / both / unknown.
+
+    Uses Jastrow's own notation:
+      (b. h.) / (Hebr.) -> Biblical/Hebrew origin
+      Targ. / ch.       -> Targumic/Chaldee (Aramaic)
+    """
+    defn = entry.get("def", "")
+    hw = entry.get("hw", "")
+    is_hebrew = "(b. h.)" in defn or "(Hebr.)" in defn
+    is_aramaic = (
+        " ch." in defn or defn.startswith("ch.")
+        or "Targ." in defn or "Targ." in hw
+    )
+    if is_hebrew and is_aramaic:
+        return "both"
+    if is_hebrew:
+        return "hebrew"
+    if is_aramaic:
+        return "aramaic"
+    return "unknown"
 
 
 def _follow_xrefs(entries: list) -> list:
-    """Replace pure cross-reference entries with the definitions they point to."""
+    """Replace pure cross-reference entries (", v. X") with what they point to."""
     result = []
     for entry in entries:
         m = _XREF_RE.match(entry.get("def", ""))
         if not m:
             result.append(entry)
             continue
-        # Extract comma-separated target headwords, strip nikud/punctuation
-        targets_raw = m.group(1)
-        targets = [strip_nikud(t).strip("., ") for t in targets_raw.split(",")]
+        targets = [strip_nikud(t).strip("., ") for t in m.group(1).split(",")]
         followed = False
         for target in targets:
             if len(target) >= 2:
@@ -85,7 +129,7 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
     """Return (direct_candidates, heh_candidates) in priority order.
 
     Direct candidates come from stripping real prefixes/suffixes.
-    Heh candidates are synthetic additions tried only if direct forms fail.
+    Heh candidates are synthetic ה additions, tried only if direct forms fail.
     """
     direct = []
 
@@ -130,37 +174,66 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
     return unique_direct, heh
 
 
-def lookup(word: str) -> list:
-    """Look up a word in Jastrow, falling back to root-finding if not found directly."""
-    _load()
-    key = strip_nikud(word)
-
-    if key in _cache:
-        return _cache[key]
-
+def _resolve(key: str) -> tuple[list, str]:
+    """Core search. Returns (entries, match_type)."""
     # 1. Exact match
     result = _follow_xrefs(_exact(key))
     if result:
-        _cache[key] = result
-        return result
+        return result, "exact"
 
-    # 2. Try stripping prefixes/suffixes to find the root
+    # 2. Strip prefixes/suffixes to find the root.
+    # Direct forms longest-first (תורה before תור), then synthetic ה forms.
     direct, heh_forms = _candidates(key)
-    # Direct forms longest-first (תורה before תור), then synthetic ה forms
     for candidate in sorted(direct, key=len, reverse=True) + heh_forms:
         result = _follow_xrefs(_exact(candidate))
         if result:
-            _cache[key] = result
-            return result
+            return result, "root"
 
-    # 3. Starts-with fallback (user typed partial root)
+    # 3. Starts-with fallback (user typed a partial root)
     matches = []
     for hw_key, entries in _index.items():
         if hw_key.startswith(key) and hw_key != key:
             matches.extend(entries)
         if len(matches) >= 5:
             break
-
     matches = _follow_xrefs(matches)
-    _cache[key] = matches
-    return matches
+    if matches:
+        return matches, "prefix"
+
+    return [], "none"
+
+
+def analyze(word: str) -> dict:
+    """Full structured lookup — the recommended entry point for the pen.
+
+    Returns:
+      {
+        "query":      original input string,
+        "normalized": nikud-stripped form actually searched,
+        "found":      bool,
+        "match_type": "exact" | "root" | "prefix" | "none",
+        "entries":    [ {"hw", "def", "lang"}, ... ],
+      }
+    """
+    _load()
+    key = strip_nikud(word)
+
+    if key in _cache:
+        return _cache[key]
+
+    entries, match_type = _resolve(key)
+    tagged = [{**e, "lang": detect_language(e)} for e in entries]
+    result = {
+        "query": word,
+        "normalized": key,
+        "found": bool(tagged),
+        "match_type": match_type,
+        "entries": tagged,
+    }
+    _cache[key] = result
+    return result
+
+
+def lookup(word: str) -> list:
+    """Convenience: return just the matching entries (each with a 'lang' tag)."""
+    return analyze(word)["entries"]
