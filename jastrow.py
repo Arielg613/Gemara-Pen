@@ -3,6 +3,7 @@ import os
 import re
 
 _index: dict | None = None
+_cache: dict = {}   # word → lookup result, so each word is only processed once
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "jastrow.json")
 
 # Common Aramaic/Hebrew prefixes and suffixes to strip when looking for a root.
@@ -95,15 +96,20 @@ def lookup(word: str) -> list:
     _load()
     key = strip_nikud(word)
 
+    if key in _cache:
+        return _cache[key]
+
     # 1. Exact match
     result = _exact(key)
     if result:
+        _cache[key] = result
         return result
 
     # 2. Try stripping prefixes/suffixes to find the root
     for candidate in _candidates(key):
         result = _exact(candidate)
         if result:
+            _cache[key] = result
             return result
 
     # 3. Starts-with fallback (user typed partial root)
@@ -114,4 +120,5 @@ def lookup(word: str) -> list:
         if len(matches) >= 5:
             break
 
+    _cache[key] = matches
     return matches
