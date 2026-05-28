@@ -42,7 +42,9 @@ _PREFIXES = [
     "א", "י", "נ",
 ]
 _SUFFIXES = [
-    # 4-letter (longest first)
+    # 5-letter (longest first)
+    "ייתא",  # Aramaic f. emphatic determinate (קמייתא → קמ)
+    # 4-letter
     "תון", "תין", "נון", "נין",
     # 3-letter possessive/plural
     "יות", "יין", "יהם", "יהן", "יכם", "יכן",
@@ -56,6 +58,7 @@ _SUFFIXES = [
     "תא", "את",
     "ים",
     "יא",   # Aramaic definite/emphatic plural (מלכיא "the kings")
+    "נן",   # Aramaic 1st pl. perfect (חזינן → חזי)
     # 1-letter (last resort — most likely to overshoot)
     "א", "ה", "ת", "ן", "י", "ו",
 ]
@@ -126,10 +129,11 @@ def _follow_xrefs(entries: list) -> list:
 
 
 def _candidates(word: str) -> tuple[list[str], list[str]]:
-    """Return (direct_candidates, heh_candidates) in priority order.
+    """Return (direct_candidates, extension_candidates) in priority order.
 
     Direct candidates come from stripping real prefixes/suffixes.
-    Heh candidates are synthetic ה additions, tried only if direct forms fail.
+    Extension candidates are synthetic ה/א additions tried only after all
+    direct forms fail — ה for Hebrew absolutes, א for Aramaic emphatics.
     """
     direct = []
 
@@ -141,13 +145,23 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
             for pre in _PREFIXES:
                 if stem.startswith(pre) and len(stem) - len(pre) >= 2:
                     direct.append(stem[len(pre):])
-            # Kal active participle: ו in position 2 (e.g. אוחז → אחז)
+            # Kal active participle: ו in position 1 (e.g. אוחז → אחז)
             if len(stem) >= 3 and stem[1] == "ו":
                 without_vav = stem[0] + stem[2:]
                 direct.append(without_vav)
                 for pre in _PREFIXES:
                     if without_vav.startswith(pre) and len(without_vav) - len(pre) >= 2:
                         direct.append(without_vav[len(pre):])
+            # Hollow-root ו removal from positions 2–3 (e.g. תיוב → תיב, שיוע → שיע)
+            if len(stem) >= 4:
+                for vpos in (2, 3):
+                    if vpos < len(stem) and stem[vpos] == "ו":
+                        nv = stem[:vpos] + stem[vpos + 1:]
+                        if len(nv) >= 2:
+                            direct.append(nv)
+                            for pre in _PREFIXES:
+                                if nv.startswith(pre) and len(nv) - len(pre) >= 2:
+                                    direct.append(nv[len(pre):])
 
     # Strip prefixes alone
     for pre in _PREFIXES:
@@ -162,16 +176,18 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
             seen.add(c)
             unique_direct.append(c)
 
-    # Synthetic ה additions (tried last)
-    heh = []
-    heh_seen: set = seen.copy()
+    # Synthetic extensions: ה (Hebrew absolute) and א (Aramaic emphatic/absolute).
+    # Tried only after all direct candidates are exhausted.
+    ext = []
+    ext_seen: set = seen.copy()
     for c in unique_direct:
-        h = c + "ה"
-        if not c.endswith("ה") and h not in heh_seen and h != word:
-            heh_seen.add(h)
-            heh.append(h)
+        for suffix in ("ה", "א"):
+            x = c + suffix
+            if not c.endswith(suffix) and x not in ext_seen and x != word:
+                ext_seen.add(x)
+                ext.append(x)
 
-    return unique_direct, heh
+    return unique_direct, ext
 
 
 def _resolve(key: str) -> tuple[list, str]:
