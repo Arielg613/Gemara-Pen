@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
 
 import requests
@@ -31,9 +32,18 @@ TRACTATES = {
     "Sanhedrin":     {"seder": "Seder Nezikin", "max_daf": 113},
     "Makkot":        {"seder": "Seder Nezikin", "max_daf": 24},
     "Shevuot":       {"seder": "Seder Nezikin", "max_daf": 49},
-    "Avodah Zarah":  {"seder": "Seder Nezikin", "max_daf": 76},
-    "Horayot":       {"seder": "Seder Nezikin", "max_daf": 14},
-    "Niddah":        {"seder": "Seder Taharot", "max_daf": 73},
+    "Avodah Zarah":  {"seder": "Seder Nezikin",  "max_daf": 76},
+    "Horayot":       {"seder": "Seder Nezikin",  "max_daf": 14},
+    "Zevachim":      {"seder": "Seder Kodashim", "max_daf": 120},
+    "Menachot":      {"seder": "Seder Kodashim", "max_daf": 110},
+    "Chullin":       {"seder": "Seder Kodashim", "max_daf": 142},
+    "Bekhorot":      {"seder": "Seder Kodashim", "max_daf": 61},
+    "Arakhin":       {"seder": "Seder Kodashim", "max_daf": 34},
+    "Temurah":       {"seder": "Seder Kodashim", "max_daf": 34},
+    "Keritot":       {"seder": "Seder Kodashim", "max_daf": 28},
+    "Meilah":        {"seder": "Seder Kodashim", "max_daf": 22},
+    "Tamid":         {"seder": "Seder Kodashim", "max_daf": 33},
+    "Niddah":        {"seder": "Seder Taharot",  "max_daf": 73},
 }
 
 # In-memory cache so we only download each tractate once per session
@@ -67,6 +77,62 @@ def _load_tractate(tractate: str) -> dict:
 def strip_nikud(text: str) -> str:
     """Strip vowel points and cantillation marks so bare letters match pointed text."""
     return re.sub(r"[֑-ׇ]", "", text)
+
+
+def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> list:
+    """Search for a word across all daf in a tractate."""
+    data = _load_tractate(tractate)
+    needle = strip_nikud(word)
+    results = []
+
+    heb_list = data["he"]
+    eng_list = data["en"]
+
+    for daf_idx in range(2, len(heb_list)):
+        heb_daf = heb_list[daf_idx] or []
+        eng_daf = eng_list[daf_idx] if daf_idx < len(eng_list) else []
+        for i, heb in enumerate(heb_daf):
+            if isinstance(heb, str) and needle in strip_nikud(heb):
+                eng = eng_daf[i] if i < len(eng_daf) and isinstance(eng_daf[i], str) else ""
+                results.append({
+                    "daf": daf_idx,
+                    "segment": i + 1,
+                    "aramaic": heb,
+                    "english": eng,
+                })
+                if len(results) >= max_results:
+                    return results
+    return results
+
+
+def search_word_in_all_tractates(word: str, max_per_tractate: int = 5, max_total: int = 60) -> list:
+    """Search every tractate in parallel, return up to max_total combined results."""
+    tractate_names = sorted(TRACTATES.keys())
+
+    def _search_one(name):
+        try:
+            matches = search_word_in_tractate(word, name, max_results=max_per_tractate)
+            for m in matches:
+                m["tractate"] = name
+            return matches
+        except Exception:
+            return []
+
+    all_results = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(_search_one, t): t for t in tractate_names}
+        tractate_order = {t: i for i, t in enumerate(tractate_names)}
+        collected = {}
+        for fut in as_completed(futures):
+            name = futures[fut]
+            collected[name] = fut.result()
+
+    for name in tractate_names:
+        all_results.extend(collected.get(name, []))
+        if len(all_results) >= max_total:
+            break
+
+    return all_results[:max_total]
 
 
 def search_word_in_daf(word: str, tractate: str, daf: str, amud: str = "a") -> list:
