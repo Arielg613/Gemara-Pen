@@ -9,28 +9,32 @@ _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "jastrow.json")
 # Common Aramaic/Hebrew prefixes and suffixes to strip when looking for a root.
 # Order matters — try longer ones first to avoid partial stripping.
 _PREFIXES = [
-    "מת", "הת", "נת",        # hitpael-style
-    "ו", "ב", "ל", "כ", "מ", "ה", "ד", "ש", "א",
+    # Ithpeal/Ithpaal reflexive-passive binyan prefix (longer first)
+    "אית", "את",
+    # Hitpael-style (Hebrew borrowed patterns)
+    "מת", "הת", "נת",
+    # Single-letter prepositions, articles, conjunctions
+    "ו", "ב", "ל", "כ", "מ", "ה", "ד", "ש",
+    # Single-letter imperfect person-markers and Afel alef
+    "א", "י", "נ",
 ]
 _SUFFIXES = [
-    # Verb endings
+    # 4-letter (longest first)
     "תון", "תין", "נון", "נין",
-    "ות", "ין", "ון", "תם", "תן", "נו", "תי", "תא",
-    "ית", "ות", "את",
-    # Noun / adjective endings
+    # 3-letter possessive/plural
     "יות", "יין", "יהם", "יהן", "יכם", "יכן",
     "הון", "הין", "כון", "כין",
+    "תם", "תן",
+    # 2-letter verb / noun endings
     "יה", "יו", "יך", "יי",
     "הם", "הן", "כם", "כן",
-    "נא", "נו",
-    # Aramaic definite state (alef at end)
-    "א",
-    # Feminine
-    "ה", "ת",
-    # Plural
-    "ים", "ות",
-    # Single-letter verb/noun suffixes
-    "ן", "י", "ו",
+    "נא", "נו", "תי",
+    "ות", "ין", "ון", "ית",
+    "תא", "את",
+    "ים",
+    "יא",   # Aramaic definite/emphatic plural (מלכיא "the kings")
+    # 1-letter (last resort — most likely to overshoot)
+    "א", "ה", "ת", "ן", "י", "ו",
 ]
 
 
