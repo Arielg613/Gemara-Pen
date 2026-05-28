@@ -39,10 +39,8 @@ _PREFIXES = [
     # Single-letter prepositions, articles, conjunctions
     "ו", "ב", "ל", "כ", "מ", "ה", "ד", "ש",
     # Single-letter imperfect person-markers and Afel alef
-    "א", "י", "נ",
-    # Aramaic present-tense marker קא (written ק before consonants): קסבר, קתני
-    # תי = 3rd/2nd-person imperfect prefix (תיקשי → קשי). More specific than bare ת
-    # to avoid stripping real roots like תנא, תורה, תלמוד.
+    "א", "י", "נ", "ת",
+    # Aramaic present-tense marker קא and specific imperfect prefix תי
     "ק", "תי",
 ]
 _SUFFIXES = [
@@ -72,10 +70,32 @@ _SUFFIXES = [
 # Matches Jastrow cross-reference definitions like ", v. רָקַק" or "v. רוֹק, רֵיק."
 _XREF_RE = re.compile(r'^,?\s*v\.\s+([א-תְ-ׇ\s,\.]+)', re.UNICODE)
 
+# Non-final → final letter map. After suffix stripping the terminal letter
+# of a stem must be in final form to match dictionary headwords.
+_TO_FINAL = {"מ": "ם", "נ": "ן", "פ": "ף", "כ": "ך", "צ": "ץ"}
+
+# Prefixes allowed for SECOND-LEVEL stripping (applied after a first-level
+# strip already yielded a candidate).  Suffix-stripped candidates have higher
+# priority than prefix-only candidates in _resolve, so false positives from
+# aggressive second-level stripping are naturally suppressed: the correct
+# suffix-stripped root is always tried first.
+_SAFE_PREFIXES = {
+    "ו", "ב", "ל", "כ", "מ", "ה", "ד", "ש",
+    "א", "י", "נ", "ת", "ק",
+    "אית", "את", "מת", "הת", "נת",
+}
+
 
 def strip_nikud(text: str) -> str:
     """Remove Hebrew vowel points and cantillation marks; trim whitespace."""
     return re.sub(r"[֑-ׇ]", "", text).strip()
+
+
+def _finalize(stem: str) -> str:
+    """Convert a stripped stem's last letter to its final form if applicable."""
+    if stem and stem[-1] in _TO_FINAL:
+        return stem[:-1] + _TO_FINAL[stem[-1]]
+    return stem
 
 
 def _load() -> None:
@@ -134,79 +154,125 @@ def _follow_xrefs(entries: list) -> list:
     return result
 
 
-def _candidates(word: str) -> tuple[list[str], list[str]]:
-    """Return (direct_candidates, extension_candidates) in priority order.
+def _candidates(word: str) -> tuple[list[str], list[str], list[str]]:
+    """Return (suf_forms, pre_forms, ext_forms).
 
-    Direct candidates come from stripping real prefixes/suffixes.
-    Extension candidates are synthetic ה/א additions tried only after all
-    direct forms fail — ה for Hebrew absolutes, א for Aramaic emphatics.
+    suf_forms  — candidates where at least one suffix was stripped.
+                 These are tried first: suffix-stripped roots are more
+                 specific and suppress false positives from pure prefix paths
+                 (e.g. תנאים → תנא via suffix beats נאים via ת-prefix).
+    pre_forms  — candidates from prefix-stripping only (no suffix removed),
+                 including vav-removal, second-level strips.
+    ext_forms  — synthetic ה/א extensions tried last.
     """
-    direct = []
+    suf: list[str] = []
+    pre: list[str] = []
 
-    # Strip suffixes first
-    for suf in _SUFFIXES:
-        if word.endswith(suf) and len(word) - len(suf) >= 2:
-            stem = word[: -len(suf)]
-            direct.append(stem)
-            for pre in _PREFIXES:
-                if stem.startswith(pre) and len(stem) - len(pre) >= 2:
-                    direct.append(stem[len(pre):])
-            # Kal active participle: ו in position 1 (e.g. אוחז → אחז)
-            if len(stem) >= 3 and stem[1] == "ו":
-                without_vav = stem[0] + stem[2:]
-                direct.append(without_vav)
-                for pre in _PREFIXES:
-                    if without_vav.startswith(pre) and len(without_vav) - len(pre) >= 2:
-                        direct.append(without_vav[len(pre):])
-            # Hollow-root ו removal from positions 2–3 (e.g. תיוב → תיב, שיוע → שיע)
-            if len(stem) >= 4:
-                for vpos in (2, 3):
-                    if vpos < len(stem) and stem[vpos] == "ו":
-                        nv = stem[:vpos] + stem[vpos + 1:]
-                        if len(nv) >= 2:
-                            direct.append(nv)
-                            for pre in _PREFIXES:
-                                if nv.startswith(pre) and len(nv) - len(pre) >= 2:
-                                    direct.append(nv[len(pre):])
+    def _add_suf(stem: str) -> None:
+        suf.append(stem)
+        f = _finalize(stem)
+        if f != stem:
+            suf.append(f)
 
-    # Strip prefixes alone
-    for pre in _PREFIXES:
-        if word.startswith(pre) and len(word) - len(pre) >= 2:
-            direct.append(word[len(pre):])
+    def _add_pre(stem: str) -> None:
+        pre.append(stem)
+        f = _finalize(stem)
+        if f != stem:
+            pre.append(f)
 
-    # Deduplicate direct, preserving order
+    # Expand word into base forms: original + vav-stripped variants.
+    # Non-original forms are added directly as pre candidates.
+    #   שוחט  → שחט  (ו at position 1, Kal pe-vav)
+    #   ואומר → אומר → אמר  (ו-prefix then pe-vav root)
+    #   ושוחט → שוחט → שחט
+    bases: list[str] = [word]
+
+    if len(word) >= 3 and word[1] == "ו":
+        form = word[0] + word[2:]
+        _add_pre(form)
+        bases.append(form)
+
+    if word.startswith("ו") and len(word) >= 4:
+        inner = word[1:]
+        _add_pre(inner)
+        bases.append(inner)
+        if len(inner) >= 3 and inner[1] == "ו":
+            form2 = inner[0] + inner[2:]
+            _add_pre(form2)
+            bases.append(form2)
+
+    for base in bases:
+        # --- Suffix stripping (results go into suf) ---
+        for sfx in _SUFFIXES:
+            if base.endswith(sfx) and len(base) - len(sfx) >= 2:
+                stem = base[: -len(sfx)]
+                _add_suf(stem)
+                for pfx in _PREFIXES:
+                    if stem.startswith(pfx) and len(stem) - len(pfx) >= 2:
+                        _add_suf(stem[len(pfx):])
+                # Kal pe-vav: ו in position 1 of the suffix-stripped stem
+                if len(stem) >= 3 and stem[1] == "ו":
+                    wv = stem[0] + stem[2:]
+                    _add_suf(wv)
+                    for pfx in _PREFIXES:
+                        if wv.startswith(pfx) and len(wv) - len(pfx) >= 2:
+                            _add_suf(wv[len(pfx):])
+                # Hollow-root ו from positions 2–3
+                if len(stem) >= 4:
+                    for vpos in (2, 3):
+                        if vpos < len(stem) and stem[vpos] == "ו":
+                            nv = stem[:vpos] + stem[vpos + 1:]
+                            if len(nv) >= 2:
+                                _add_suf(nv)
+                                for pfx in _PREFIXES:
+                                    if nv.startswith(pfx) and len(nv) - len(pfx) >= 2:
+                                        _add_suf(nv[len(pfx):])
+
+        # --- Prefix-only stripping (results go into pre) ---
+        for pfx in _PREFIXES:
+            if base.startswith(pfx) and len(base) - len(pfx) >= 2:
+                stripped = base[len(pfx):]
+                _add_pre(stripped)
+                if len(stripped) >= 3 and stripped[1] == "ו":
+                    _add_pre(stripped[0] + stripped[2:])
+
+    # Deduplicate suf, then pre (excluding what suf already claimed)
     seen: set = set()
-    unique_direct = []
-    for c in direct:
+    unique_suf: list[str] = []
+    for c in suf:
         if c not in seen and c != word:
             seen.add(c)
-            unique_direct.append(c)
+            unique_suf.append(c)
 
-    # Second-level prefix stripping: try one more prefix off each direct candidate.
-    # Handles double-prefix words like מדרבנן→מדרב→דרב→רב, דיעבד→יעבד→עבד,
-    # and imperfect verbs like תיקשי→יקשי→קשי (once ק,ת added to PREFIXES).
-    second: list = []
-    for c in list(unique_direct):
-        for pre in _PREFIXES:
-            if c.startswith(pre) and len(c) - len(pre) >= 2:
-                c2 = c[len(pre):]
-                if c2 not in seen and c2 != word:
-                    seen.add(c2)
-                    second.append(c2)
-    unique_direct.extend(second)
+    unique_pre: list[str] = []
+    for c in pre:
+        if c not in seen and c != word:
+            seen.add(c)
+            unique_pre.append(c)
 
-    # Synthetic extensions: ה (Hebrew absolute) and א (Aramaic emphatic/absolute).
-    # Tried only after all direct candidates are exhausted.
-    ext = []
+    # Second-level prefix stripping applied to both groups
+    second_pre: list[str] = []
+    for c in list(unique_suf) + list(unique_pre):
+        for pfx in _SAFE_PREFIXES:
+            if c.startswith(pfx) and len(c) - len(pfx) >= 2:
+                c2 = c[len(pfx):]
+                for cand in (c2, _finalize(c2)):
+                    if cand not in seen and cand != word:
+                        seen.add(cand)
+                        second_pre.append(cand)
+    unique_pre.extend(second_pre)
+
+    # Synthetic extensions: ה / א tried last
+    ext: list[str] = []
     ext_seen: set = seen.copy()
-    for c in unique_direct:
-        for suffix in ("ה", "א"):
-            x = c + suffix
-            if not c.endswith(suffix) and x not in ext_seen and x != word:
+    for c in unique_suf + unique_pre:
+        for sfx in ("ה", "א"):
+            x = c + sfx
+            if not c.endswith(sfx) and x not in ext_seen and x != word:
                 ext_seen.add(x)
                 ext.append(x)
 
-    return unique_direct, ext
+    return unique_suf, unique_pre, ext
 
 
 def _explain(original: str, root: str) -> dict:
@@ -236,10 +302,12 @@ def _resolve(key: str) -> tuple[list, str, dict]:
     if result:
         return result, "exact", {}
 
-    # 2. Strip prefixes/suffixes to find the root.
-    # Direct forms longest-first (תורה before תור), then extension forms.
-    direct, ext_forms = _candidates(key)
-    for candidate in sorted(direct, key=len, reverse=True) + ext_forms:
+    # 2. Suffix-stripped candidates (higher priority) then prefix-only, then extensions.
+    # Sorting each group by length descending: longer stripped stems are more specific.
+    suf_forms, pre_forms, ext_forms = _candidates(key)
+    for candidate in (sorted(suf_forms, key=len, reverse=True) +
+                      sorted(pre_forms, key=len, reverse=True) +
+                      ext_forms):
         result = _follow_xrefs(_exact(candidate))
         if result:
             return result, "root", _explain(key, candidate)
