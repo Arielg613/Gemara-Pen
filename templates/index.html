@@ -260,6 +260,42 @@
     }
     .english { font-size: 0.92rem; line-height: 1.65; color: #3a2a1a; }
 
+    .version-badge {
+      font-size: 0.65rem;
+      font-weight: bold;
+      letter-spacing: 0.08em;
+      background: #7a3b10;
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      vertical-align: middle;
+      font-style: normal;
+    }
+
+    .gloss-banner {
+      background: #2c1810;
+      color: #f4ede0;
+      font-size: 1.25rem;
+      font-family: Georgia, serif;
+      padding: 0.9rem 1.3rem;
+      border-radius: 6px;
+      margin-bottom: 0.85rem;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    .jastrow-full-toggle {
+      font-size: 0.78rem;
+      color: #7a5c3a;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      display: inline-block;
+      user-select: none;
+    }
+    .jastrow-full-toggle:hover { text-decoration: underline; }
+    .jastrow-full-body { display: none; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #e0d4b8; }
+    .jastrow-full-body.open { display: block; }
+
     mark { background: #f5d76e; color: inherit; border-radius: 2px; padding: 0 1px; }
 
     .empty {
@@ -274,7 +310,7 @@
 <div class="container">
 
   <header>
-    <h1>Gemara Pen</h1>
+    <h1>Gemara Pen <span class="version-badge">v2.0</span></h1>
     <p>Aramaic &amp; Hebrew dictionary for Talmud study</p>
   </header>
 
@@ -441,7 +477,7 @@
   function renderJastrow(data) {
     const el = document.getElementById('results');
 
-    if (!data.found || !data.entries.length) {
+    if (!data.found && !data.gloss) {
       el.innerHTML = `<div class="empty">
         <strong>${esc(data.word)}</strong> not found in Jastrow.<br>
         <small>Try the root form — e.g. אחז instead of אוחזין</small>
@@ -457,22 +493,38 @@
     };
 
     const morphHtml = renderMorphology(data);
-
     let html = morphHtml;
+
+    // Gloss banner — the clean short answer, always shown first
+    if (data.gloss) {
+      html += `<div class="gloss-banner">${esc(data.gloss)}</div>`;
+    }
+
     for (const e of data.entries) {
       const [label, cls] = LANG_LABEL[e.lang] || [null, null];
       const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
+      const uid = Math.random().toString(36).slice(2);
       html += `
         <div class="jastrow-card">
           <div class="jastrow-header">
             <div class="jastrow-hw">${esc(e.hw)}</div>
             ${badge}
           </div>
-          <div class="jastrow-def">${esc(e.def)}</div>
+          <span class="jastrow-full-toggle" onclick="toggleFull('${uid}')">▸ Full Jastrow entry</span>
+          <div class="jastrow-full-body" id="full-${uid}">
+            <div class="jastrow-def">${esc(e.def)}</div>
+          </div>
           <div class="jastrow-source">Jastrow's Dictionary</div>
         </div>`;
     }
     el.innerHTML = html;
+  }
+
+  function toggleFull(uid) {
+    const body = document.getElementById('full-' + uid);
+    const toggle = body.previousElementSibling;
+    const open = body.classList.toggle('open');
+    toggle.textContent = (open ? '▾' : '▸') + ' Full Jastrow entry';
   }
 
   // --- Passage search ---
