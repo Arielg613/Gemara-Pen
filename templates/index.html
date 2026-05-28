@@ -467,20 +467,36 @@
     const btn = document.getElementById('precache-btn');
     const msg = document.getElementById('precache-msg');
     btn.disabled = true;
-    msg.textContent = 'Downloading all tractates… (20–30 seconds)';
+
     try {
       const res  = await fetch('/precache', { method: 'POST' });
       const data = await res.json();
-      if (data.errors && data.errors.length) {
-        msg.textContent = `✓ ${data.loaded}/${data.total} tractates loaded (${data.errors.length} failed: ${data.errors.join(', ')})`;
-      } else {
-        msg.textContent = `✓ All ${data.loaded} tractates loaded — searches are now instant!`;
-        btn.textContent = '✓ Loaded';
-      }
+      if (data.already_running) { msg.textContent = 'Already loading…'; }
     } catch (_) {
-      msg.textContent = 'Failed to pre-load. Try again.';
+      msg.textContent = 'Failed to start. Try again.';
       btn.disabled = false;
+      return;
     }
+
+    // Poll every second until done
+    const poll = setInterval(async () => {
+      try {
+        const res  = await fetch('/precache/status');
+        const data = await res.json();
+        const pct  = data.total ? Math.round((data.loaded / data.total) * 100) : 0;
+        msg.textContent = `Loading… ${data.loaded}/${data.total} tractates (${pct}%)`;
+
+        if (data.status === 'done') {
+          clearInterval(poll);
+          if (data.errors && data.errors.length) {
+            msg.textContent = `✓ ${data.loaded - data.errors.length}/${data.total} loaded (${data.errors.length} failed)`;
+          } else {
+            msg.textContent = `✓ All ${data.loaded} tractates loaded — searches are now instant!`;
+            btn.textContent = '✓ Loaded';
+          }
+        }
+      } catch (_) { /* ignore transient poll errors */ }
+    }, 1000);
   }
 
   // --- Helpers ---
