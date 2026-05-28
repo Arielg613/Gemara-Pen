@@ -173,13 +173,33 @@
       padding: 1.2rem 1.4rem;
       margin-bottom: 1rem;
     }
+    .jastrow-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
     .jastrow-hw {
       direction: rtl;
       font-family: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif;
       font-size: 1.5rem;
       color: #1a1008;
-      margin-bottom: 0.5rem;
     }
+    .lang-badge {
+      font-size: 0.7rem;
+      font-weight: bold;
+      letter-spacing: 0.06em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .lang-hebrew  { background: #d4eaff; color: #1a4a7a; }
+    .lang-aramaic { background: #fde8c8; color: #7a3b10; }
+    .lang-both    { background: #e8d4f0; color: #4a1a6a; }
     .jastrow-def {
       font-size: 0.95rem;
       line-height: 1.65;
@@ -385,11 +405,23 @@
       return;
     }
 
+    const LANG_LABEL = {
+      hebrew:  ['Hebrew',          'lang-hebrew'],
+      aramaic: ['Aramaic',         'lang-aramaic'],
+      both:    ['Hebrew & Aramaic','lang-both'],
+      unknown: [null, null],
+    };
+
     let html = '';
     for (const e of data.entries) {
+      const [label, cls] = LANG_LABEL[e.lang] || [null, null];
+      const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
       html += `
         <div class="jastrow-card">
-          <div class="jastrow-hw">${esc(e.hw)}</div>
+          <div class="jastrow-header">
+            <div class="jastrow-hw">${esc(e.hw)}</div>
+            ${badge}
+          </div>
           <div class="jastrow-def">${esc(e.def)}</div>
           <div class="jastrow-source">Jastrow's Dictionary</div>
         </div>`;

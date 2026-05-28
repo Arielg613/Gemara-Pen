@@ -134,11 +134,30 @@ def lookup():
         entries = jastrow_lookup(word)
         return jsonify({
             "word": word,
-            "entries": entries,
+            "entries": [_tag_language(e) for e in entries],
             "found": len(entries) > 0,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def _tag_language(entry: dict) -> dict:
+    """Add a 'lang' field to a Jastrow entry based on definition markers."""
+    defn = entry.get("def", "")
+    is_hebrew  = "(b. h.)" in defn or "(Hebr.)" in defn
+    is_aramaic = bool(
+        " ch." in defn or defn.startswith("ch.")
+        or "Targ." in defn or "Targ." in entry.get("hw", "")
+    )
+    if is_hebrew and is_aramaic:
+        lang = "both"
+    elif is_hebrew:
+        lang = "hebrew"
+    elif is_aramaic:
+        lang = "aramaic"
+    else:
+        lang = "unknown"
+    return {**entry, "lang": lang}
 
 
 @app.route("/precache", methods=["POST"])
