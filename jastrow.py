@@ -40,6 +40,10 @@ _PREFIXES = [
     "ו", "ב", "ל", "כ", "מ", "ה", "ד", "ש",
     # Single-letter imperfect person-markers and Afel alef
     "א", "י", "נ",
+    # Aramaic present-tense marker קא (written ק before consonants): קסבר, קתני
+    # תי = 3rd/2nd-person imperfect prefix (תיקשי → קשי). More specific than bare ת
+    # to avoid stripping real roots like תנא, תורה, תלמוד.
+    "ק", "תי",
 ]
 _SUFFIXES = [
     # 5-letter (longest first)
@@ -50,6 +54,8 @@ _SUFFIXES = [
     "יות", "יין", "יהם", "יהן", "יכם", "יכן",
     "הון", "הין", "כון", "כין",
     "תם", "תן",
+    # 2-letter construct + possessive combos (e.g. שחיטתו → שחיט)
+    "תו", "תה", "תך",
     # 2-letter verb / noun endings
     "יה", "יו", "יך", "יי",
     "הם", "הן", "כם", "כן",
@@ -60,7 +66,7 @@ _SUFFIXES = [
     "יא",   # Aramaic definite/emphatic plural (מלכיא "the kings")
     "נן",   # Aramaic 1st pl. perfect (חזינן → חזי)
     # 1-letter (last resort — most likely to overshoot)
-    "א", "ה", "ת", "ן", "י", "ו",
+    "א", "ה", "ת", "ן", "י", "ו", "ך",
 ]
 
 # Matches Jastrow cross-reference definitions like ", v. רָקַק" or "v. רוֹק, רֵיק."
@@ -176,6 +182,19 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
             seen.add(c)
             unique_direct.append(c)
 
+    # Second-level prefix stripping: try one more prefix off each direct candidate.
+    # Handles double-prefix words like מדרבנן→מדרב→דרב→רב, דיעבד→יעבד→עבד,
+    # and imperfect verbs like תיקשי→יקשי→קשי (once ק,ת added to PREFIXES).
+    second: list = []
+    for c in list(unique_direct):
+        for pre in _PREFIXES:
+            if c.startswith(pre) and len(c) - len(pre) >= 2:
+                c2 = c[len(pre):]
+                if c2 not in seen and c2 != word:
+                    seen.add(c2)
+                    second.append(c2)
+    unique_direct.extend(second)
+
     # Synthetic extensions: ה (Hebrew absolute) and א (Aramaic emphatic/absolute).
     # Tried only after all direct candidates are exhausted.
     ext = []
@@ -190,20 +209,40 @@ def _candidates(word: str) -> tuple[list[str], list[str]]:
     return unique_direct, ext
 
 
-def _resolve(key: str) -> tuple[list, str]:
-    """Core search. Returns (entries, match_type)."""
+def _explain(original: str, root: str) -> dict:
+    """Best-effort morpheme decomposition: what prefix/suffix was stripped?"""
+    # Case 1: root is a simple substring of original
+    idx = original.find(root)
+    if idx >= 0:
+        return {"prefix": original[:idx], "root": root, "suffix": original[idx + len(root):]}
+    # Case 2: a ו was removed from the root (Kal participle / hollow root)
+    for vpos in range(1, len(root)):
+        expanded = root[:vpos] + "ו" + root[vpos:]
+        idx = original.find(expanded)
+        if idx >= 0:
+            return {"prefix": original[:idx], "root": root, "suffix": original[idx + len(expanded):]}
+    # Case 3: an aleph/heh extension was added — strip it for comparison
+    if root and root[-1] in "האו":
+        idx = original.find(root[:-1])
+        if idx >= 0:
+            return {"prefix": original[:idx], "root": root, "suffix": original[idx + len(root) - 1:]}
+    return {"prefix": "", "root": root, "suffix": ""}
+
+
+def _resolve(key: str) -> tuple[list, str, dict]:
+    """Core search. Returns (entries, match_type, morphology)."""
     # 1. Exact match
     result = _follow_xrefs(_exact(key))
     if result:
-        return result, "exact"
+        return result, "exact", {}
 
     # 2. Strip prefixes/suffixes to find the root.
-    # Direct forms longest-first (תורה before תור), then synthetic ה forms.
-    direct, heh_forms = _candidates(key)
-    for candidate in sorted(direct, key=len, reverse=True) + heh_forms:
+    # Direct forms longest-first (תורה before תור), then extension forms.
+    direct, ext_forms = _candidates(key)
+    for candidate in sorted(direct, key=len, reverse=True) + ext_forms:
         result = _follow_xrefs(_exact(candidate))
         if result:
-            return result, "root"
+            return result, "root", _explain(key, candidate)
 
     # 3. Starts-with fallback (user typed a partial root)
     matches = []
@@ -214,9 +253,9 @@ def _resolve(key: str) -> tuple[list, str]:
             break
     matches = _follow_xrefs(matches)
     if matches:
-        return matches, "prefix"
+        return matches, "prefix", {}
 
-    return [], "none"
+    return [], "none", {}
 
 
 def analyze(word: str) -> dict:
@@ -228,6 +267,7 @@ def analyze(word: str) -> dict:
         "normalized": nikud-stripped form actually searched,
         "found":      bool,
         "match_type": "exact" | "root" | "prefix" | "none",
+        "morphology": {"prefix", "root", "suffix"} — only present for root matches,
         "entries":    [ {"hw", "def", "lang"}, ... ],
       }
     """
@@ -237,7 +277,7 @@ def analyze(word: str) -> dict:
     if key in _cache:
         return _cache[key]
 
-    entries, match_type = _resolve(key)
+    entries, match_type, morphology = _resolve(key)
     tagged = [{**e, "lang": detect_language(e)} for e in entries]
     result = {
         "query": word,
@@ -246,6 +286,8 @@ def analyze(word: str) -> dict:
         "match_type": match_type,
         "entries": tagged,
     }
+    if morphology:
+        result["morphology"] = morphology
     _cache[key] = result
     return result
 

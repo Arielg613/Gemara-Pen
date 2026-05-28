@@ -46,6 +46,18 @@ def _show(result: dict) -> None:
     note = MATCH_NOTE.get(result["match_type"], "")
     print(f"\n  {'─' * 48}")
     print(f"  {word}   {('(' + note + ')') if note else ''}")
+
+    m = result.get("morphology", {})
+    if m and (m.get("prefix") or m.get("suffix")):
+        pre  = m.get("prefix", "")
+        root = m.get("root", word)
+        suf  = m.get("suffix", "")
+        parts = []
+        if pre:  parts.append(f"prefix: {pre}")
+        parts.append(f"root: {root}")
+        if suf:  parts.append(f"suffix: {suf}")
+        print(f"  └─ {' | '.join(parts)}")
+
     print(f"  {'─' * 48}")
 
     for i, entry in enumerate(result["entries"][:2]):

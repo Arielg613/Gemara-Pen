@@ -165,6 +165,29 @@
     }
 
     /* Jastrow result */
+    /* Morphology breakdown strip */
+    .morph-strip {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      background: #f0f4ff;
+      border: 1px solid #c7d4f0;
+      border-radius: 6px;
+      padding: 0.65rem 1rem;
+      margin-bottom: 0.85rem;
+      font-size: 0.9rem;
+      direction: rtl;
+    }
+    .morph-word { font-size: 1.4rem; letter-spacing: 0.04em; }
+    .morph-prefix { color: #1e6b2e; font-weight: 700; background: #d4f0dc; border-radius: 3px; padding: 0 3px; }
+    .morph-root   { color: #1a1a1a; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+    .morph-suffix { color: #7c3700; font-weight: 700; background: #ffe5c7; border-radius: 3px; padding: 0 3px; }
+    .morph-arrow  { color: #888; font-size: 1rem; direction: ltr; }
+    .morph-label  { color: #444; font-size: 0.82rem; direction: ltr; flex: 1 1 100%; margin-top: 0.25rem; }
+    .morph-inline-prefix { color: #1e6b2e; font-weight: 700; background: #d4f0dc; border-radius: 3px; padding: 0 3px; }
+    .morph-inline-suffix { color: #7c3700; font-weight: 700; background: #ffe5c7; border-radius: 3px; padding: 0 3px; }
+
     .jastrow-card {
       background: #fffdf7;
       border: 1px solid #d4c4a8;
@@ -394,6 +417,27 @@
     }
   }
 
+  function renderMorphology(data) {
+    // Build the coloured word breakdown: prefix | root | suffix
+    const m = data.morphology;
+    if (!m || (!m.prefix && !m.suffix)) return '';
+    const pre = m.prefix || '';
+    const suf = m.suffix || '';
+    const root = m.root || data.word;
+    let parts = '';
+    if (pre) parts += `<span class="morph-prefix">${esc(pre)}</span>`;
+    parts += `<span class="morph-root">${esc(root)}</span>`;
+    if (suf) parts += `<span class="morph-suffix">${esc(suf)}</span>`;
+    const labels = [];
+    if (pre) labels.push(`prefix <span class="morph-inline-prefix">${esc(pre)}</span>`);
+    if (suf) labels.push(`suffix <span class="morph-inline-suffix">${esc(suf)}</span>`);
+    return `<div class="morph-strip">
+      <span class="morph-word">${parts}</span>
+      <span class="morph-arrow">→</span>
+      <span class="morph-label">stripped ${labels.join(', ')} → root <strong>${esc(root)}</strong></span>
+    </div>`;
+  }
+
   function renderJastrow(data) {
     const el = document.getElementById('results');
 
@@ -412,7 +456,9 @@
       unknown: [null, null],
     };
 
-    let html = '';
+    const morphHtml = renderMorphology(data);
+
+    let html = morphHtml;
     for (const e of data.entries) {
       const [label, cls] = LANG_LABEL[e.lang] || [null, null];
       const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
