@@ -69,6 +69,32 @@ def strip_nikud(text: str) -> str:
     return re.sub(r"[֑-ׇ]", "", text)
 
 
+def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> list:
+    """Search for a word across all daf in a tractate."""
+    data = _load_tractate(tractate)
+    needle = strip_nikud(word)
+    results = []
+
+    heb_list = data["he"]
+    eng_list = data["en"]
+
+    for daf_idx in range(2, len(heb_list)):
+        heb_daf = heb_list[daf_idx] or []
+        eng_daf = eng_list[daf_idx] if daf_idx < len(eng_list) else []
+        for i, heb in enumerate(heb_daf):
+            if isinstance(heb, str) and needle in strip_nikud(heb):
+                eng = eng_daf[i] if i < len(eng_daf) and isinstance(eng_daf[i], str) else ""
+                results.append({
+                    "daf": daf_idx,
+                    "segment": i + 1,
+                    "aramaic": heb,
+                    "english": eng,
+                })
+                if len(results) >= max_results:
+                    return results
+    return results
+
+
 def search_word_in_daf(word: str, tractate: str, daf: str, amud: str = "a") -> list:
     """Return all segments of a daf that contain the search word.
 
