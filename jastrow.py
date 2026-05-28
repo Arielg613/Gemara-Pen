@@ -53,6 +53,34 @@ def _exact(key: str) -> list:
     return _index.get(key, [])
 
 
+# Matches Jastrow cross-reference definitions like ", v. רָקַק" or "v. רוֹק, רֵיק."
+_XREF_RE = re.compile(r'^,?\s*v\.\s+([א-תְ-ׇ\s,\.]+)', re.UNICODE)
+
+
+def _follow_xrefs(entries: list) -> list:
+    """Replace pure cross-reference entries with the definitions they point to."""
+    result = []
+    for entry in entries:
+        m = _XREF_RE.match(entry.get("def", ""))
+        if not m:
+            result.append(entry)
+            continue
+        # Extract comma-separated target headwords, strip nikud/punctuation
+        targets_raw = m.group(1)
+        targets = [strip_nikud(t).strip("., ") for t in targets_raw.split(",")]
+        followed = False
+        for target in targets:
+            if len(target) >= 2:
+                ref = _exact(target)
+                if ref:
+                    result.extend(ref)
+                    followed = True
+                    break
+        if not followed:
+            result.append(entry)   # keep original if target not found
+    return result
+
+
 def _candidates(word: str) -> list[str]:
     """Generate possible root forms by stripping prefixes and suffixes."""
     candidates = []
@@ -104,14 +132,14 @@ def lookup(word: str) -> list:
         return _cache[key]
 
     # 1. Exact match
-    result = _exact(key)
+    result = _follow_xrefs(_exact(key))
     if result:
         _cache[key] = result
         return result
 
     # 2. Try stripping prefixes/suffixes to find the root
     for candidate in _candidates(key):
-        result = _exact(candidate)
+        result = _follow_xrefs(_exact(candidate))
         if result:
             _cache[key] = result
             return result
@@ -124,5 +152,6 @@ def lookup(word: str) -> list:
         if len(matches) >= 5:
             break
 
+    matches = _follow_xrefs(matches)
     _cache[key] = matches
     return matches
