@@ -1,3 +1,4 @@
+import requests
 from flask import Flask, jsonify, render_template, request
 from define import get_contextual_definition
 from translator import TRACTATES, search_word_in_daf
@@ -61,6 +62,39 @@ def define():
         return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": f"AI error: {e}"}), 500
+
+
+@app.route("/lookup", methods=["POST"])
+def lookup():
+    data = request.get_json()
+    word = (data.get("word") or "").strip()
+
+    if not word:
+        return jsonify({"error": "Please enter a word."}), 400
+
+    try:
+        resp = requests.get(
+            f"https://www.sefaria.org/api/lexicon/lookup/{word}",
+            timeout=10
+        )
+        resp.raise_for_status()
+        entries = resp.json()
+
+        if not entries:
+            return jsonify({"word": word, "entries": [], "found": False})
+
+        results = []
+        for entry in entries:
+            results.append({
+                "headword": entry.get("headword", word),
+                "source": entry.get("parent_lexicon", ""),
+                "definition": entry.get("content", {}).get("en", ""),
+            })
+
+        return jsonify({"word": word, "entries": results, "found": True})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 if __name__ == "__main__":
