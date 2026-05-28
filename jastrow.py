@@ -81,46 +81,53 @@ def _follow_xrefs(entries: list) -> list:
     return result
 
 
-def _candidates(word: str) -> list[str]:
-    """Generate possible root forms by stripping prefixes and suffixes."""
-    candidates = []
+def _candidates(word: str) -> tuple[list[str], list[str]]:
+    """Return (direct_candidates, heh_candidates) in priority order.
+
+    Direct candidates come from stripping real prefixes/suffixes.
+    Heh candidates are synthetic additions tried only if direct forms fail.
+    """
+    direct = []
 
     # Strip suffixes first
     for suf in _SUFFIXES:
         if word.endswith(suf) and len(word) - len(suf) >= 2:
             stem = word[: -len(suf)]
-            candidates.append(stem)
-            # Also try stripping a prefix off the stem
+            direct.append(stem)
             for pre in _PREFIXES:
                 if stem.startswith(pre) and len(stem) - len(pre) >= 2:
-                    candidates.append(stem[len(pre):])
-            # Handle kal active participle: 2nd letter is ו as binyan marker
-            # e.g. אוחז → אחז (alef-vav-chet-zayn → alef-chet-zayn)
+                    direct.append(stem[len(pre):])
+            # Kal active participle: ו in position 2 (e.g. אוחז → אחז)
             if len(stem) >= 3 and stem[1] == "ו":
                 without_vav = stem[0] + stem[2:]
-                candidates.append(without_vav)
+                direct.append(without_vav)
                 for pre in _PREFIXES:
                     if without_vav.startswith(pre) and len(without_vav) - len(pre) >= 2:
-                        candidates.append(without_vav[len(pre):])
+                        direct.append(without_vav[len(pre):])
 
     # Strip prefixes alone
     for pre in _PREFIXES:
         if word.startswith(pre) and len(word) - len(pre) >= 2:
-            stem = word[len(pre):]
-            candidates.append(stem)
+            direct.append(word[len(pre):])
 
-    # Also try each candidate with ה appended (many Aramaic/Hebrew nouns end in ה)
-    with_heh = [c + "ה" for c in candidates if not c.endswith("ה")]
-    candidates.extend(with_heh)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique = []
-    for c in candidates:
+    # Deduplicate direct, preserving order
+    seen: set = set()
+    unique_direct = []
+    for c in direct:
         if c not in seen and c != word:
             seen.add(c)
-            unique.append(c)
-    return unique
+            unique_direct.append(c)
+
+    # Synthetic ה additions (tried last)
+    heh = []
+    heh_seen: set = seen.copy()
+    for c in unique_direct:
+        h = c + "ה"
+        if not c.endswith("ה") and h not in heh_seen and h != word:
+            heh_seen.add(h)
+            heh.append(h)
+
+    return unique_direct, heh
 
 
 def lookup(word: str) -> list:
@@ -138,7 +145,9 @@ def lookup(word: str) -> list:
         return result
 
     # 2. Try stripping prefixes/suffixes to find the root
-    for candidate in _candidates(key):
+    direct, heh_forms = _candidates(key)
+    # Direct forms longest-first (תורה before תור), then synthetic ה forms
+    for candidate in sorted(direct, key=len, reverse=True) + heh_forms:
         result = _follow_xrefs(_exact(candidate))
         if result:
             _cache[key] = result
