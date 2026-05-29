@@ -415,13 +415,68 @@
       color: #9a7a5a;
       font-style: italic;
     }
+
+    /* ── Morphology analysis card ────────────────────────────────────────── */
+    .morph-card {
+      background: #fffdf7;
+      border: 1px solid #d4c4a8;
+      border-radius: 8px;
+      padding: 1.6rem 1.4rem 1.2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .morph-root-large {
+      direction: rtl;
+      font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruehl CLM', 'Times New Roman', serif;
+      font-size: 3rem;
+      font-weight: bold;
+      color: #1a1008;
+      margin-bottom: 0.3rem;
+      line-height: 1.2;
+    }
+    .morph-arrow-row {
+      font-size: 0.8rem;
+      color: #a08060;
+      margin-bottom: 0.5rem;
+      direction: rtl;
+    }
+    .morph-def {
+      font-size: 1.2rem;
+      color: #2c1810;
+      margin-bottom: 0.9rem;
+      font-style: italic;
+    }
+    .morph-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+    }
+    .morph-chip {
+      font-size: 0.78rem;
+      padding: 0.22rem 0.6rem;
+      border-radius: 20px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .chip-prefix { background: #d4f0dc; color: #1e5a2e; }
+    .chip-state  { background: #d4eaff; color: #1a4a7a; }
+    .chip-binyan { background: #fde8c8; color: #7a3b10; }
+    .chip-tense  { background: #f0d4f0; color: #5a1a7a; }
+    .chip-suffix { background: #ffe5c7; color: #7c3700; }
+    .morph-confidence {
+      font-size: 0.72rem;
+      font-weight: bold;
+      letter-spacing: 0.03em;
+    }
   </style>
 </head>
 <body>
 <div class="container">
 
   <header>
-    <h1>Gemara Pen <span class="version-badge">v2.4</span></h1>
+    <h1>Gemara Pen <span class="version-badge">v2.5</span></h1>
     <p>Aramaic &amp; Hebrew dictionary for Talmud study</p>
   </header>
 
@@ -552,7 +607,7 @@
     lookupActive ? doLookup() : doSearch();
   });
 
-  // --- Jastrow lookup ---
+  // --- Dictionary lookup (morphological analysis) ---
   async function doLookup() {
     const word     = document.getElementById('word').value.trim();
     const tractate = ctxTractate.value;
@@ -563,11 +618,11 @@
     if (!word) { status.textContent = 'Enter a word first.'; return; }
 
     btn.disabled = true;
-    status.textContent = 'Looking up…';
+    status.textContent = 'Analyzing…';
     results.innerHTML = '';
 
     try {
-      const res  = await fetch('/lookup', {
+      const res  = await fetch('/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ word, tractate }),
@@ -576,10 +631,7 @@
       status.textContent = '';
 
       if (data.error) { status.textContent = `Error: ${data.error}`; return; }
-
-      if (data.type === 'abbreviation') { renderAbbrev(data); return; }
-      if (data.type === 'phrase')       { renderPhrase(data); return; }
-      renderJastrow(data);
+      renderAnalysis(data);
 
     } catch (_) {
       status.textContent = 'Network error.';
@@ -628,114 +680,123 @@
     }
   }
 
-  function renderAbbrev(data) {
-    document.getElementById('results').innerHTML = `
-      <div class="abbrev-banner">
-        <div>${esc(data.gloss)}</div>
-        <div class="abbrev-label">Abbreviation · ${esc(data.full || '')}</div>
-      </div>`;
-  }
-
-  function renderPhrase(data) {
-    document.getElementById('results').innerHTML = `
-      <div class="phrase-banner">
-        <div>${esc(data.gloss)}</div>
-        <div class="phrase-label">Talmudic phrase · ${esc(data.word)}</div>
-      </div>`;
-  }
-
-  function renderMorphology(data) {
-    // Build the coloured word breakdown: prefix | root | suffix
-    const m = data.morphology;
-    if (!m || (!m.prefix && !m.suffix)) return '';
-    const pre = m.prefix || '';
-    const suf = m.suffix || '';
-    const root = m.root || data.word;
-    let parts = '';
-    if (pre) parts += `<span class="morph-prefix">${esc(pre)}</span>`;
-    parts += `<span class="morph-root">${esc(root)}</span>`;
-    if (suf) parts += `<span class="morph-suffix">${esc(suf)}</span>`;
-    const labels = [];
-    if (pre) labels.push(`prefix <span class="morph-inline-prefix">${esc(pre)}</span>`);
-    if (suf) labels.push(`suffix <span class="morph-inline-suffix">${esc(suf)}</span>`);
-    return `<div class="morph-strip">
-      <span class="morph-word">${parts}</span>
-      <span class="morph-arrow">→</span>
-      <span class="morph-label">stripped ${labels.join(', ')} → root <strong>${esc(root)}</strong></span>
-    </div>`;
-  }
-
-  function renderJastrow(data) {
+  // ── Main result renderer ──────────────────────────────────────────────────
+  function renderAnalysis(data) {
     const el = document.getElementById('results');
 
-    if (!data.found && !data.gloss) {
-      el.innerHTML = `<div class="empty">
-        <strong>${esc(data.word)}</strong> not found in Jastrow.<br>
-        <small>Try the root form — e.g. אחז instead of אוחזין</small>
+    // Abbreviation
+    if (data.type === 'abbreviation') {
+      el.innerHTML = `<div class="abbrev-banner">
+        <div>${esc(data.definition)}</div>
+        <div class="abbrev-label">Abbreviation · ${esc(data.full_translation || '')}</div>
       </div>`;
       return;
     }
 
-    const LANG_LABEL = {
-      hebrew:  ['Hebrew',          'lang-hebrew'],
-      aramaic: ['Aramaic',         'lang-aramaic'],
-      both:    ['Hebrew & Aramaic','lang-both'],
-      unknown: [null, null],
-    };
-
-    const morphHtml = renderMorphology(data);
-    let html = morphHtml;
-
-    // Gloss banner — the clean short answer, always shown first
-    if (data.gloss) {
-      const ctxNote = data.context_sense && data.tractate
-        ? `<div style="font-size:0.75rem;opacity:0.75;margin-top:0.3rem">📍 sense for ${esc(data.tractate)}</div>`
-        : '';
-      html += `<div class="gloss-banner">${esc(data.gloss)}${ctxNote}</div>`;
+    // Talmudic phrase
+    if (data.type === 'phrase') {
+      el.innerHTML = `<div class="phrase-banner">
+        <div>${esc(data.definition)}</div>
+        <div class="phrase-label">Talmudic phrase · ${esc(data.word)}</div>
+      </div>`;
+      return;
     }
 
-    // Inline passages — shown when a tractate is set
+    // Not found
+    if (!data.found) {
+      el.innerHTML = `<div class="empty">
+        <strong dir="rtl">${esc(data.word)}</strong> — not found.<br>
+        <small>Try typing the root form (e.g. type אחז instead of אוחזין)</small>
+      </div>`;
+      return;
+    }
+
+    // ── Morphology card ─────────────────────────────────────────────────────
+    let html = `<div class="morph-card">`;
+
+    // Root large (RTL)
+    html += `<div class="morph-root-large">${esc(data.root || data.word)}</div>`;
+
+    // Show original → root arrow when they differ
+    if (data.root && data.root !== data.normalized) {
+      html += `<div class="morph-arrow-row">${esc(data.word)} → ${esc(data.root)}</div>`;
+    }
+
+    // Definition
+    if (data.definition) {
+      html += `<div class="morph-def">${esc(data.definition)}</div>`;
+    }
+
+    // Breakdown chips
+    const chips = [];
+    for (const p of (data.prefixes || []))  chips.push({ label: p,          cls: 'chip-prefix' });
+    if (data.state)                          chips.push({ label: data.state,  cls: 'chip-state'  });
+    if (data.binyan)                         chips.push({ label: data.binyan, cls: 'chip-binyan' });
+    if (data.tense)                          chips.push({ label: data.tense,  cls: 'chip-tense'  });
+    if (data.suffix)                         chips.push({ label: data.suffix, cls: 'chip-suffix' });
+
+    if (chips.length) {
+      html += `<div class="morph-chips">`;
+      for (const c of chips) html += `<span class="morph-chip ${c.cls}">${esc(c.label)}</span>`;
+      html += `</div>`;
+    }
+
+    // Confidence indicator
+    const confMap = { high: ['✓ confident', '#2a7a2a'], medium: ['~ inferred', '#7a5a00'], low: ['? best guess', '#9a4a10'] };
+    const [confText, confColor] = confMap[data.confidence] || confMap.low;
+    html += `<div class="morph-confidence" style="color:${confColor}">${confText}</div>`;
+
+    html += `</div>`;
+
+    // ── Sefaria passages ───────────────────────────────────────────────────
+    const tractate = ctxTractate.value;
     if (data.passages && data.passages.length > 0) {
       html += `<div class="passages-section">
-        <div class="passages-header">📖 In ${esc(data.tractate)} (${data.passages.length} passage${data.passages.length !== 1 ? 's' : ''})</div>`;
+        <div class="passages-header">📖 In ${esc(tractate)} (${data.passages.length} passage${data.passages.length !== 1 ? 's' : ''})</div>`;
       for (const p of data.passages) {
         html += `<div class="passage-card">
-          <div class="passage-meta">Daf ${esc(p.daf || '')} · Segment ${p.segment}</div>
+          <div class="passage-meta">Daf ${esc(String(p.daf || ''))} · Segment ${p.segment}</div>
           <div class="aramaic">${highlight(p.aramaic, data.word)}</div>
           <div class="english">${esc(p.english || '')}</div>
         </div>`;
       }
       html += `</div>`;
-    } else if (data.tractate && data.passages && data.passages.length === 0) {
+    } else if (tractate && data.passages) {
       html += `<div class="passages-section">
-        <div class="passages-header">📖 In ${esc(data.tractate)}</div>
+        <div class="passages-header">📖 In ${esc(tractate)}</div>
         <div style="font-size:0.85rem;color:#9a7a5a;font-style:italic;padding:0.5rem 0">
-          Word not found in ${esc(data.tractate)} — or Sefaria unavailable
+          Not found in ${esc(tractate)} text — or Sefaria unavailable
         </div>
       </div>`;
     }
 
-    // Don't show Jastrow cards for prefix-fallback matches (wrong words)
-    // or when a quick-gloss already gives the correct answer
-    const showEntries = data.match_type !== 'prefix' && data.match_type !== 'quick';
-
-    for (const e of showEntries ? data.entries : []) {
-      const [label, cls] = LANG_LABEL[e.lang] || [null, null];
-      const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
-      const uid = Math.random().toString(36).slice(2);
-      html += `
-        <div class="jastrow-card">
-          <div class="jastrow-header">
-            <div class="jastrow-hw">${esc(e.hw)}</div>
-            ${badge}
-          </div>
-          <span class="jastrow-full-toggle" onclick="toggleFull('${uid}')">▸ Full Jastrow entry</span>
-          <div class="jastrow-full-body" id="full-${uid}">
-            <div class="jastrow-def">${esc(e.def)}</div>
-          </div>
-          <div class="jastrow-source">Jastrow's Dictionary</div>
-        </div>`;
+    // ── Jastrow entries (collapsible, only for full word matches) ──────────
+    const showEntries = data.type === 'word' && data.entries && data.entries.length > 0;
+    if (showEntries) {
+      const LANG_LABEL = {
+        hebrew:  ['Hebrew',           'lang-hebrew'],
+        aramaic: ['Aramaic',          'lang-aramaic'],
+        both:    ['Hebrew & Aramaic', 'lang-both'],
+      };
+      for (const e of data.entries) {
+        const [label, cls] = LANG_LABEL[e.lang] || [null, null];
+        const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
+        const uid = Math.random().toString(36).slice(2);
+        html += `
+          <div class="jastrow-card">
+            <div class="jastrow-header">
+              <div class="jastrow-hw">${esc(e.hw)}</div>
+              ${badge}
+            </div>
+            <span class="jastrow-full-toggle" onclick="toggleFull('${uid}')">▸ Full Jastrow entry</span>
+            <div class="jastrow-full-body" id="full-${uid}">
+              <div class="jastrow-def">${esc(e.def)}</div>
+            </div>
+            <div class="jastrow-source">Jastrow's Dictionary</div>
+          </div>`;
+      }
     }
+
     el.innerHTML = html;
   }
 

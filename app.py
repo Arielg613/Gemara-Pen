@@ -21,6 +21,7 @@ import threading
 from flask import Flask, jsonify, render_template, request
 from jastrow import analyze as jastrow_analyze, expand_abbreviation, lookup_phrase
 from translator import TRACTATES, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
+from morphology import analyze_word
 
 # Optional: Rashi-script OCR via pytesseract + tessdata
 _TESSDATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -76,6 +77,33 @@ def index():
         tractates=sorted(TRACTATES.keys()),
         tractate_max_daf=max_daf,
     )
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json()
+    word     = (data.get("word")     or "").strip()
+    tractate = (data.get("tractate") or "").strip()
+
+    if not word:
+        return jsonify({"error": "Please enter a word."}), 400
+
+    try:
+        result = analyze_word(word, tractate)
+
+        # Attach Sefaria passages when tractate is known
+        if tractate and tractate in TRACTATES:
+            try:
+                passages = search_word_in_tractate(word, tractate)
+                result["passages"] = passages[:5]
+            except Exception:
+                result["passages"] = []
+        else:
+            result["passages"] = []
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/translate", methods=["POST"])
