@@ -592,14 +592,16 @@ def analyze(word: str, tractate: str = "") -> dict:
     context_sense = False
     if tractate and tagged and key in _tractate_sense:
         sense_map = _tractate_sense[key]
-        preferred_idx = sense_map.get(tractate)
-        if preferred_idx is not None and preferred_idx < len(tagged):
-            # Move preferred entry to front; keep others in original order
-            reordered = [tagged[preferred_idx]] + [
-                e for i, e in enumerate(tagged) if i != preferred_idx
-            ]
-            tagged = reordered
-            context_sense = True
+        preferred_raw = sense_map.get(tractate)
+        if preferred_raw is not None:
+            # Support both old format (int) and new format ({index, confidence})
+            preferred_idx = preferred_raw["index"] if isinstance(preferred_raw, dict) else preferred_raw
+            if isinstance(preferred_idx, int) and preferred_idx < len(tagged):
+                reordered = [tagged[preferred_idx]] + [
+                    e for i, e in enumerate(tagged) if i != preferred_idx
+                ]
+                tagged = reordered
+                context_sense = True
 
     # Build the short gloss: quick override > distilled Jastrow > empty
     if quick:
