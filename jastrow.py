@@ -136,6 +136,68 @@ _QUICK_GLOSSES: dict[str, str] = {
     "איתא":       "it exists; it is so",
     "ליתא":       "it does not exist; it is not so",
     "כמה":        "how much; how many",
+    # ── Core Talmudic legal terms (Jastrow picks the wrong entry for these) ──
+    "מותר":       "permitted; allowed — or: leftover, remainder",
+    "אסור":       "forbidden; prohibited",
+    "חייב":       "liable; obligated; guilty",
+    "פטור":       "exempt; not liable",
+    "כשר":        "valid; fit; ritually permitted",
+    "פסול":       "invalid; disqualified",
+    "טמא":        "ritually impure",
+    "טהור":       "ritually pure",
+    "נדה":        "menstrual impurity; a woman in niddah",
+    "מלאכה":      "work; labor; craft; forbidden Sabbath activity",
+    "מצוה":       "commandment; mitzvah; good deed",
+    "עבירה":      "transgression; sin",
+    "תשובה":      "repentance; answer; response",
+    "קנין":       "acquisition; legal act of taking possession",
+    "שטר":        "legal document; contract; bill",
+    "עדות":       "testimony; evidence",
+    "שבועה":      "oath; vow",
+    "נדר":        "vow; oath",
+    # ── Common nouns Jastrow misdirects ──────────────────────────────────────
+    "רבי":        "rabbi; my teacher; Torah sage",
+    "בית":        "house; home; the Temple",
+    "דין":        "law; judgment; legal case",
+    "עד":         "witness; until; as far as",
+    "מעה":        "intestine; bowel",
+    "מעים":       "intestines; bowels",
+    "מעי":        "intestines; bowels (construct form)",
+    "עיר":        "city; town",
+    "שוק":        "market; public area; thigh",
+    "יד":         "hand; handle; power",
+    "רגל":        "foot; leg; festival",
+    "ראש":        "head; beginning; leader",
+    "לב":         "heart; mind",
+    "עין":        "eye; spring of water",
+    "פה":         "mouth; opening",
+    "אב":         "father; source; primary category",
+    "אם":         "mother; if",
+    "בן":         "son; member of",
+    "בת":         "daughter; member of (f.); bath (unit)",
+    "אח":         "brother",
+    "איש":        "man; person; husband",
+    "אשה":        "woman; wife",
+    "ארץ":        "land; earth; country",
+    "מים":        "water",
+    "אש":         "fire",
+    "דם":         "blood",
+    "כסף":        "silver; money",
+    "זהב":        "gold",
+    "שדה":        "field",
+    "כלי":        "vessel; utensil; tool",
+    "בגד":        "garment; cloth",
+    "לחם":        "bread; food",
+    "בשר":        "meat; flesh",
+    "חלב":        "milk; fat",
+    "יין":        "wine",
+    "שמן":        "oil",
+    "מלח":        "salt",
+    "זמן":        "time; appointed time",
+    "מקום":       "place; location; God (Makom)",
+    "דבר":        "thing; word; matter",
+    "שם":         "name; there",
+    "כן":         "so; yes; thus",
     # ── Key Aramaic nouns ────────────────────────────────────────────────────
     "טעמא":       "reason; rationale",
     "סלקא":       "it arises; it would seem",
@@ -185,10 +247,22 @@ _CITATION_RE = re.compile(
     re.UNICODE,
 )
 _LEAD_RE = re.compile(
-    r'^(?:,\s*|—\s*|\(b\.\s*h\.\)\s*|\(Hebr\.\)\s*|ch\.\s*)+'
+    r'^(?:'
+    r',\s*|—\s*'
+    r'|\(b\.\s*h\.\)\s*|\(Hebr\.\)\s*|ch\.\s*'
+    r'|(?:cmp\.\s*)?preced\.\)\s*'   # "preced.)" and "cmp. preced.)"
+    r'|\)\s*[mf]\.\s*(?:;|pl\.)[^;]*?;\s*'  # ") m.; pl. ...;" grammar block
+    r'|\)\s*'                          # bare leading ")"
+    r')+'
 )
 # Sentence-end before a citation: ". " followed by capital or special chars
 _SENT_END_RE = re.compile(r'\.\s+(?=[A-ZḥḤṭṬṣṢẒא-ת])')
+
+# Patterns that signal the "definition" is actually a grammar label, not a gloss
+_JUNK_GLOSS_RE = re.compile(
+    r'^(?:inf|pr\.\s*n\.|pl\.\s*constr\.|m\.|f\.|pass\.|act\.|Af\.|Pa\.|Ithpe\.|Ithpa\.)',
+    re.IGNORECASE
+)
 
 
 def strip_nikud(text: str) -> str:
@@ -261,6 +335,10 @@ def distill(defn: str) -> str:
 
     # Clean trailing punctuation
     s = s.rstrip('.,;:— ')
+
+    # Reject grammar-label-only glosses (inf, pr. n., pl. constr., etc.)
+    if s and _JUNK_GLOSS_RE.match(s):
+        s = ""
 
     # Prefer the main text (s) over the bracket (which is usually etymology)
     gloss = s if s else bracket

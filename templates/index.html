@@ -235,9 +235,32 @@
       font-style: italic;
     }
 
-    /* Passage results */
-    .result-count { color: #5a3e28; font-weight: bold; margin-bottom: 1rem; }
+    /* Inline passage results (shown under dictionary gloss) */
+    .passages-section {
+      margin-bottom: 1rem;
+    }
+    .passages-header {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #5a3e28;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid #d4c4a8;
+    }
+    .passage-card {
+      background: #fffdf7;
+      border: 1px solid #d4c4a8;
+      border-left: 3px solid #7a3b10;
+      border-radius: 4px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .passage-meta { font-size: 0.72rem; color: #a08060; margin-bottom: 0.4rem; }
 
+    /* Standalone passage search results */
+    .result-count { color: #5a3e28; font-weight: bold; margin-bottom: 1rem; }
     .result-card {
       background: #fffdf7;
       border: 1px solid #d4c4a8;
@@ -398,7 +421,7 @@
 <div class="container">
 
   <header>
-    <h1>Gemara Pen <span class="version-badge">v2.2</span></h1>
+    <h1>Gemara Pen <span class="version-badge">v2.3</span></h1>
     <p>Aramaic &amp; Hebrew dictionary for Talmud study</p>
   </header>
 
@@ -663,14 +686,33 @@
     const morphHtml = renderMorphology(data);
     let html = morphHtml;
 
-    // Context badge — shown when the entry was picked specifically for this tractate
-    if (data.context_sense && data.tractate) {
-      html += `<div class="context-badge">📍 Context: ${esc(data.tractate)}</div>`;
-    }
-
     // Gloss banner — the clean short answer, always shown first
     if (data.gloss) {
-      html += `<div class="gloss-banner">${esc(data.gloss)}</div>`;
+      const ctxNote = data.context_sense && data.tractate
+        ? `<div style="font-size:0.75rem;opacity:0.75;margin-top:0.3rem">📍 sense for ${esc(data.tractate)}</div>`
+        : '';
+      html += `<div class="gloss-banner">${esc(data.gloss)}${ctxNote}</div>`;
+    }
+
+    // Inline passages — shown when a tractate is set
+    if (data.passages && data.passages.length > 0) {
+      html += `<div class="passages-section">
+        <div class="passages-header">📖 In ${esc(data.tractate)} (${data.passages.length} passage${data.passages.length !== 1 ? 's' : ''})</div>`;
+      for (const p of data.passages) {
+        html += `<div class="passage-card">
+          <div class="passage-meta">Daf ${esc(p.daf || '')} · Segment ${p.segment}</div>
+          <div class="aramaic">${highlight(p.aramaic, data.word)}</div>
+          <div class="english">${esc(p.english || '')}</div>
+        </div>`;
+      }
+      html += `</div>`;
+    } else if (data.tractate && data.passages && data.passages.length === 0) {
+      html += `<div class="passages-section">
+        <div class="passages-header">📖 In ${esc(data.tractate)}</div>
+        <div style="font-size:0.85rem;color:#9a7a5a;font-style:italic;padding:0.5rem 0">
+          Word not found in ${esc(data.tractate)} — or Sefaria unavailable
+        </div>
+      </div>`;
     }
 
     for (const e of data.entries) {

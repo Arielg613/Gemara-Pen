@@ -173,9 +173,20 @@ def lookup():
             "context_sense": result.get("context_sense", False),
             "tractate":      tractate,
             "entries":       result["entries"],
+            "passages":      [],
         }
         if result.get("morphology"):
             resp["morphology"] = result["morphology"]
+
+        # 4. When tractate is set, also fetch passages from Sefaria (shows
+        #    the word in the actual text the user is studying)
+        if tractate and tractate in TRACTATES:
+            try:
+                passages = search_word_in_tractate(word, tractate)
+                resp["passages"] = passages[:5]   # cap at 5 to keep response fast
+            except Exception:
+                pass   # Sefaria unavailable — degrade gracefully
+
         return jsonify(resp)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
