@@ -25,9 +25,16 @@ import json
 import os
 import re
 
-_index: dict | None = None
-_cache: dict = {}   # normalized word → analyze() result (computed once per word)
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "jastrow.json")
+_index:          dict | None = None
+_tractate_sense: dict | None = None   # {word: {tractate: entry_index}}
+_abbreviations:  dict | None = None   # {letters: {full, en}}
+_phrases:        dict | None = None   # {phrase: meaning}
+_cache: dict = {}   # (normalized_word, tractate) → analyze() result
+
+_DATA_PATH    = os.path.join(os.path.dirname(__file__), "data", "jastrow.json")
+_TSENSE_PATH  = os.path.join(os.path.dirname(__file__), "data", "tractate_sense.json")
+_ABBREV_PATH  = os.path.join(os.path.dirname(__file__), "data", "abbreviations.json")
+_PHRASES_PATH = os.path.join(os.path.dirname(__file__), "data", "phrases.json")
 
 # Aramaic/Hebrew prefixes and suffixes to strip when looking for a root.
 # Order matters — longer ones are tried first to avoid partial stripping.
@@ -267,10 +274,28 @@ def distill(defn: str) -> str:
 
 
 def _load() -> None:
-    global _index
+    global _index, _tractate_sense, _abbreviations, _phrases
     if _index is None:
         with open(_DATA_PATH, encoding="utf-8") as f:
             _index = json.load(f)
+    if _tractate_sense is None:
+        try:
+            with open(_TSENSE_PATH, encoding="utf-8") as f:
+                _tractate_sense = json.load(f)
+        except FileNotFoundError:
+            _tractate_sense = {}
+    if _abbreviations is None:
+        try:
+            with open(_ABBREV_PATH, encoding="utf-8") as f:
+                _abbreviations = json.load(f)
+        except FileNotFoundError:
+            _abbreviations = {}
+    if _phrases is None:
+        try:
+            with open(_PHRASES_PATH, encoding="utf-8") as f:
+                _phrases = json.load(f)
+        except FileNotFoundError:
+            _phrases = {}
 
 
 def _exact(key: str) -> list:
@@ -494,7 +519,46 @@ def _resolve(key: str) -> tuple[list, str, dict]:
     return [], "none", {}
 
 
-def analyze(word: str) -> dict:
+def expand_abbreviation(word: str) -> dict | None:
+    """If word looks like a Hebrew abbreviation (contains ״ or '), expand it.
+
+    Returns {letters, full, en} or None if not recognised.
+    """
+    _load()
+    # Normalise: strip nikud, remove gershayim characters (״ U+05F4, " U+0022, ' U+0027)
+    stripped = strip_nikud(word)
+    letters = re.sub(r'[״\'"]', '', stripped)
+    if not letters or not re.search(r'[א-ת]', letters):
+        return None
+    entry = _abbreviations.get(letters)
+    if entry:
+        return {"letters": letters, **entry}
+    return None
+
+
+def lookup_phrase(text: str) -> dict | None:
+    """Check if text is (or starts with) a known Talmudic phrase.
+
+    Returns {phrase, meaning} or None.
+    """
+    _load()
+    stripped = strip_nikud(text)
+    if stripped in _phrases:
+        return {"phrase": stripped, "meaning": _phrases[stripped]}
+    # Partial: try first two words of text against phrase keys
+    words = stripped.split()
+    if len(words) >= 2:
+        prefix = " ".join(words[:2])
+        if prefix in _phrases:
+            return {"phrase": prefix, "meaning": _phrases[prefix]}
+        if len(words) >= 3:
+            prefix3 = " ".join(words[:3])
+            if prefix3 in _phrases:
+                return {"phrase": prefix3, "meaning": _phrases[prefix3]}
+    return None
+
+
+def analyze(word: str, tractate: str = "") -> dict:
     """Full structured lookup — the recommended entry point for the pen.
 
     Returns:
@@ -503,21 +567,39 @@ def analyze(word: str) -> dict:
         "normalized": nikud-stripped form actually searched,
         "found":      bool,
         "match_type": "exact" | "root" | "prefix" | "none",
+        "tractate":   tractate context used (empty = none),
+        "context_sense": True if the entry was reordered for this tractate,
         "morphology": {"prefix", "root", "suffix"} — only present for root matches,
         "entries":    [ {"hw", "def", "lang"}, ... ],
       }
     """
     _load()
     key = strip_nikud(word)
+    cache_key = (key, tractate)
 
-    if key in _cache:
-        return _cache[key]
+    if cache_key in _cache:
+        return _cache[cache_key]
 
     # Check quick-gloss overrides first (common Talmudic words Jastrow misses)
     quick = _QUICK_GLOSSES.get(key)
 
     entries, match_type, morphology = _resolve(key)
     tagged = [{**e, "lang": detect_language(e)} for e in entries]
+
+    # ── Tractate-context reordering ─────────────────────────────────────────
+    # If a tractate is specified and we have sense data for this word,
+    # promote the tractate-specific entry to the front so its gloss is used.
+    context_sense = False
+    if tractate and tagged and key in _tractate_sense:
+        sense_map = _tractate_sense[key]
+        preferred_idx = sense_map.get(tractate)
+        if preferred_idx is not None and preferred_idx < len(tagged):
+            # Move preferred entry to front; keep others in original order
+            reordered = [tagged[preferred_idx]] + [
+                e for i, e in enumerate(tagged) if i != preferred_idx
+            ]
+            tagged = reordered
+            context_sense = True
 
     # Build the short gloss: quick override > distilled Jastrow > empty
     if quick:
@@ -528,19 +610,21 @@ def analyze(word: str) -> dict:
         gloss = ""
 
     result = {
-        "query":      word,
-        "normalized": key,
-        "found":      bool(tagged) or bool(quick),
-        "match_type": match_type if tagged else ("quick" if quick else "none"),
-        "gloss":      gloss,
-        "entries":    tagged,
+        "query":        word,
+        "normalized":   key,
+        "found":        bool(tagged) or bool(quick),
+        "match_type":   match_type if tagged else ("quick" if quick else "none"),
+        "tractate":     tractate,
+        "context_sense": context_sense,
+        "gloss":        gloss,
+        "entries":      tagged,
     }
     if morphology:
         result["morphology"] = morphology
-    _cache[key] = result
+    _cache[cache_key] = result
     return result
 
 
-def lookup(word: str) -> list:
+def lookup(word: str, tractate: str = "") -> list:
     """Convenience: return just the matching entries (each with a 'lang' tag)."""
-    return analyze(word)["entries"]
+    return analyze(word, tractate)["entries"]

@@ -260,6 +260,67 @@
     }
     .english { font-size: 0.92rem; line-height: 1.65; color: #3a2a1a; }
 
+    .context-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+    .ctx-label { font-size: 0.78rem; font-weight: bold; color: #5a3e28; }
+    .ctx-select {
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #c4ad8a;
+      border-radius: 4px;
+      background: #fffdf7;
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: #2c1810;
+      max-width: 320px;
+    }
+
+    .context-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      background: #d4f0dc;
+      color: #1e5a2e;
+      border-radius: 3px;
+      padding: 0.15rem 0.45rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+
+    .phrase-banner {
+      background: #1a4a7a;
+      color: #e8f0ff;
+      font-size: 1.15rem;
+      font-family: Georgia, serif;
+      padding: 0.9rem 1.3rem;
+      border-radius: 6px;
+      margin-bottom: 0.85rem;
+      text-align: center;
+    }
+    .phrase-label {
+      font-size: 0.75rem;
+      color: #9ab8d8;
+      margin-top: 0.35rem;
+    }
+
+    .abbrev-banner {
+      background: #4a3a1a;
+      color: #f4e8c8;
+      font-size: 1.15rem;
+      font-family: Georgia, serif;
+      padding: 0.9rem 1.3rem;
+      border-radius: 6px;
+      margin-bottom: 0.85rem;
+      text-align: center;
+    }
+    .abbrev-label {
+      font-size: 0.75rem;
+      color: #c8b890;
+      margin-top: 0.35rem;
+    }
+
     .version-badge {
       font-size: 0.65rem;
       font-weight: bold;
@@ -327,7 +388,13 @@
 
   <!-- Dictionary panel -->
   <div id="panel-lookup" class="panel active">
-    <button class="lookup-btn" id="lookup-btn" onclick="doLookup()">Look Up in Jastrow</button>
+    <div class="context-row">
+      <label for="ctx-tractate" class="ctx-label">📍 Current tractate <span style="font-weight:normal;color:#9a7a5a">(optional — gives context-aware definitions)</span></label>
+      <select id="ctx-tractate" class="ctx-select">
+        <option value="">— no context —</option>
+      </select>
+    </div>
+    <button class="lookup-btn" id="lookup-btn" onclick="doLookup()">Look Up</button>
   </div>
 
   <!-- Search Passages panel -->
@@ -380,6 +447,15 @@
     document.getElementById('status').textContent = '';
   }
 
+  // --- Context tractate selector (Dictionary panel) ---
+  const ctxTractate = document.getElementById('ctx-tractate');
+  Object.keys(TRACTATES).sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    ctxTractate.appendChild(opt);
+  });
+
   // --- Tractate / daf dropdowns ---
   const tractateSelect = document.getElementById('tractate');
   const dafSelect      = document.getElementById('daf');
@@ -423,10 +499,11 @@
 
   // --- Jastrow lookup ---
   async function doLookup() {
-    const word   = document.getElementById('word').value.trim();
-    const btn    = document.getElementById('lookup-btn');
-    const status = document.getElementById('status');
-    const results = document.getElementById('results');
+    const word     = document.getElementById('word').value.trim();
+    const tractate = ctxTractate.value;
+    const btn      = document.getElementById('lookup-btn');
+    const status   = document.getElementById('status');
+    const results  = document.getElementById('results');
 
     if (!word) { status.textContent = 'Enter a word first.'; return; }
 
@@ -438,12 +515,15 @@
       const res  = await fetch('/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word }),
+        body: JSON.stringify({ word, tractate }),
       });
       const data = await res.json();
       status.textContent = '';
 
       if (data.error) { status.textContent = `Error: ${data.error}`; return; }
+
+      if (data.type === 'abbreviation') { renderAbbrev(data); return; }
+      if (data.type === 'phrase')       { renderPhrase(data); return; }
       renderJastrow(data);
 
     } catch (_) {
@@ -451,6 +531,22 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  function renderAbbrev(data) {
+    document.getElementById('results').innerHTML = `
+      <div class="abbrev-banner">
+        <div>${esc(data.gloss)}</div>
+        <div class="abbrev-label">Abbreviation · ${esc(data.full || '')}</div>
+      </div>`;
+  }
+
+  function renderPhrase(data) {
+    document.getElementById('results').innerHTML = `
+      <div class="phrase-banner">
+        <div>${esc(data.gloss)}</div>
+        <div class="phrase-label">Talmudic phrase · ${esc(data.word)}</div>
+      </div>`;
   }
 
   function renderMorphology(data) {
@@ -494,6 +590,11 @@
 
     const morphHtml = renderMorphology(data);
     let html = morphHtml;
+
+    // Context badge — shown when the entry was picked specifically for this tractate
+    if (data.context_sense && data.tractate) {
+      html += `<div class="context-badge">📍 Context: ${esc(data.tractate)}</div>`;
+    }
 
     // Gloss banner — the clean short answer, always shown first
     if (data.gloss) {

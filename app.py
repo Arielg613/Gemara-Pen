@@ -15,7 +15,7 @@ Endpoints:
 
 import threading
 from flask import Flask, jsonify, render_template, request
-from jastrow import analyze as jastrow_analyze
+from jastrow import analyze as jastrow_analyze, expand_abbreviation, lookup_phrase
 from translator import TRACTATES, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
 
 app = Flask(__name__)
@@ -119,19 +119,47 @@ def translate():
 @app.route("/lookup", methods=["POST"])
 def lookup():
     data = request.get_json()
-    word = (data.get("word") or "").strip()
+    word     = (data.get("word")     or "").strip()
+    tractate = (data.get("tractate") or "").strip()
 
     if not word:
         return jsonify({"error": "Please enter a word."}), 400
 
     try:
-        result = jastrow_analyze(word)
+        # 1. Check for abbreviation (ת"ל, ק"ו, etc.)
+        abbrev = expand_abbreviation(word)
+        if abbrev:
+            return jsonify({
+                "word":    word,
+                "type":    "abbreviation",
+                "found":   True,
+                "gloss":   abbrev["en"],
+                "full":    abbrev.get("full", ""),
+                "entries": [],
+            })
+
+        # 2. Check for known Talmudic phrase (תא שמע, פשיטא, etc.)
+        phrase = lookup_phrase(word)
+        if phrase:
+            return jsonify({
+                "word":    word,
+                "type":    "phrase",
+                "found":   True,
+                "gloss":   phrase["meaning"],
+                "entries": [],
+            })
+
+        # 3. Dictionary lookup (with optional tractate context)
+        result = jastrow_analyze(word, tractate)
         resp = {
-            "word":       word,
-            "found":      result["found"],
-            "match_type": result["match_type"],
-            "gloss":      result.get("gloss", ""),
-            "entries":    result["entries"],
+            "word":          word,
+            "type":          "word",
+            "found":         result["found"],
+            "match_type":    result["match_type"],
+            "gloss":         result.get("gloss", ""),
+            "context_sense": result.get("context_sense", False),
+            "tractate":      tractate,
+            "entries":       result["entries"],
         }
         if result.get("morphology"):
             resp["morphology"] = result["morphology"]
