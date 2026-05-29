@@ -30,7 +30,43 @@ import requests
 
 GCS_BASE = "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli"
 TRACTATES_SEDER = {
-    "Megillah": "Seder Moed",
+    "Berakhot":      "Seder Zeraim",
+    "Shabbat":       "Seder Moed",
+    "Eruvin":        "Seder Moed",
+    "Pesachim":      "Seder Moed",
+    "Yoma":          "Seder Moed",
+    "Sukkah":        "Seder Moed",
+    "Beitzah":       "Seder Moed",
+    "Rosh Hashanah": "Seder Moed",
+    "Taanit":        "Seder Moed",
+    "Megillah":      "Seder Moed",
+    "Moed Katan":    "Seder Moed",
+    "Chagigah":      "Seder Moed",
+    "Yevamot":       "Seder Nashim",
+    "Ketubot":       "Seder Nashim",
+    "Nedarim":       "Seder Nashim",
+    "Nazir":         "Seder Nashim",
+    "Sotah":         "Seder Nashim",
+    "Gittin":        "Seder Nashim",
+    "Kiddushin":     "Seder Nashim",
+    "Bava Kamma":    "Seder Nezikin",
+    "Bava Metzia":   "Seder Nezikin",
+    "Bava Batra":    "Seder Nezikin",
+    "Sanhedrin":     "Seder Nezikin",
+    "Makkot":        "Seder Nezikin",
+    "Shevuot":       "Seder Nezikin",
+    "Avodah Zarah":  "Seder Nezikin",
+    "Horayot":       "Seder Nezikin",
+    "Zevachim":      "Seder Kodashim",
+    "Menachot":      "Seder Kodashim",
+    "Chullin":       "Seder Kodashim",
+    "Bekhorot":      "Seder Kodashim",
+    "Arakhin":       "Seder Kodashim",
+    "Temurah":       "Seder Kodashim",
+    "Keritot":       "Seder Kodashim",
+    "Meilah":        "Seder Kodashim",
+    "Tamid":         "Seder Kodashim",
+    "Niddah":        "Seder Taharot",
 }
 
 
@@ -79,7 +115,7 @@ def extract_root(word):
 
 
 def build(tractate):
-    seder = "Seder Moed"  # default; add lookup if needed
+    seder = TRACTATES_SEDER.get(tractate, "Seder Moed")
 
     # Load existing translation table (flat: word → translation)
     print("Loading existing translations…")
@@ -135,7 +171,6 @@ def build(tractate):
                     daf_words.append({
                         "word":        word,
                         "translation": translation,
-                        "root":        root,
                     })
 
         dafs[daf] = daf_words
@@ -148,9 +183,16 @@ def build(tractate):
 
     result = {"tractate": tractate, "dafs": dafs}
 
+    import os
+    os.makedirs("dictionaries", exist_ok=True)
+    safe_name = tractate.replace(" ", "_")
+    out_path = f"dictionaries/{safe_name}.json"
+
     with open("real_dictionary.json", "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print("\nSaved → real_dictionary.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    print(f"\nSaved → real_dictionary.json  +  {out_path}")
     return result
 
 
