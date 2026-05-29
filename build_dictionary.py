@@ -111,6 +111,30 @@ def split_aramaic_words(text: str) -> list[str]:
     return [p for p in parts if p and re.search(r"[א-ת]", p)]
 
 
+def daf_label(daf_idx: int) -> str:
+    """Convert GCS list index to Talmudic daf+amud label (e.g. 60 → '31a')."""
+    daf_number = (daf_idx - 2) // 2 + 2
+    amud = 'a' if (daf_idx - 2) % 2 == 0 else 'b'
+    return f"{daf_number}{amud}"
+
+
+_STRIP_PREFIXES = ['ו', 'ה', 'ב', 'ל', 'מ', 'כ', 'ד', 'ש']
+
+
+def extract_root(word: str) -> str:
+    """Strip nikud and common single-letter prefixes to approximate the root.
+    Only strips a prefix when the remaining form is still ≥ 3 characters."""
+    bare = re.sub(r'[֑-ׇ]', '', word).strip()
+    for _ in range(3):
+        for pfx in _STRIP_PREFIXES:
+            if bare.startswith(pfx) and len(bare) - len(pfx) >= 3:
+                bare = bare[len(pfx):]
+                break
+        else:
+            break
+    return bare
+
+
 # ── Stage 1: Build corpus ──────────────────────────────────────────────────
 
 def build_corpus(tractate_names: list[str]) -> dict:
@@ -136,7 +160,7 @@ def build_corpus(tractate_names: list[str]) -> dict:
         for daf_idx in range(2, len(heb_list)):
             heb_segs = flatten(heb_list[daf_idx])
             eng_segs = flatten(eng_list[daf_idx] if daf_idx < len(eng_list) else [])
-            daf = str(daf_idx)
+            daf = daf_label(daf_idx)
 
             for i, heb in enumerate(heb_segs):
                 heb = strip_html(heb).strip()
@@ -317,8 +341,9 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
 # ── Main ───────────────────────────────────────────────────────────────────
 
 def main():
-    args       = [a for a in sys.argv[1:] if not a.startswith("--")]
-    no_refine  = "--no-refine" in sys.argv
+    args        = [a for a in sys.argv[1:] if not a.startswith("--")]
+    no_refine   = "--no-refine"   in sys.argv
+    skip_corpus = "--skip-corpus" in sys.argv   # reuse existing word_contexts.json
 
     tractate_arg = args[0] if args else "Megillah"
 
@@ -330,10 +355,18 @@ def main():
         print(f"Unknown tractate: {tractate_arg!r}")
         sys.exit(1)
 
-    print("=" * 60)
-    print(f"  STAGE 1: Building corpus — {', '.join(tractates)}")
-    print("=" * 60)
-    word_contexts = build_corpus(tractates)
+    if skip_corpus:
+        print("=" * 60)
+        print("  STAGE 1: Skipped — loading existing word_contexts.json")
+        print("=" * 60)
+        with open("word_contexts.json", encoding="utf-8") as f:
+            word_contexts = json.load(f)
+        print(f"  Loaded {len(word_contexts)} word forms")
+    else:
+        print("=" * 60)
+        print(f"  STAGE 1: Building corpus — {', '.join(tractates)}")
+        print("=" * 60)
+        word_contexts = build_corpus(tractates)
 
     if no_refine or not _get_token():
         if not _get_token():
@@ -355,6 +388,7 @@ def main():
         if gloss:
             real_dictionary[word] = {
                 "translation": gloss,
+                "root":        extract_root(word),
                 "tractate":    ctx["tractate"],
                 "daf":         ctx["daf"],
             }
