@@ -260,6 +260,33 @@
     }
     .english { font-size: 0.92rem; line-height: 1.65; color: #3a2a1a; }
 
+    .photo-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.65rem;
+    }
+    .photo-btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #fffdf7;
+      border: 1.5px dashed #c4ad8a;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: #5a3e28;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .photo-btn:hover { background: #f0e6d4; border-color: #9a7a5a; }
+    .photo-status {
+      font-size: 0.82rem;
+      color: #7a5c3a;
+      font-style: italic;
+      flex: 1;
+    }
+
     .context-row {
       display: flex;
       flex-direction: column;
@@ -371,7 +398,7 @@
 <div class="container">
 
   <header>
-    <h1>Gemara Pen <span class="version-badge">v2.1</span></h1>
+    <h1>Gemara Pen <span class="version-badge">v2.2</span></h1>
     <p>Aramaic &amp; Hebrew dictionary for Talmud study</p>
   </header>
 
@@ -393,6 +420,11 @@
       <select id="ctx-tractate" class="ctx-select">
         <option value="">— no context —</option>
       </select>
+    </div>
+    <div class="photo-row">
+      <label class="photo-btn" for="photo-input">📷 Scan / Upload Photo</label>
+      <input id="photo-input" type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
+      <span id="photo-status" class="photo-status"></span>
     </div>
     <button class="lookup-btn" id="lookup-btn" onclick="doLookup()">Look Up</button>
   </div>
@@ -530,6 +562,46 @@
       status.textContent = 'Network error.';
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  // --- Photo / OCR ---
+  async function handlePhoto(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const photoStatus = document.getElementById('photo-status');
+    photoStatus.textContent = 'Reading image…';
+
+    try {
+      const b64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result.split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      photoStatus.textContent = 'Running OCR…';
+      const resp = await fetch('/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_b64: b64, lang: 'heb_rashi' }),
+      });
+      const data = await resp.json();
+
+      if (data.error) { photoStatus.textContent = `OCR error: ${data.error}`; return; }
+
+      if (data.words && data.words.length > 0) {
+        // Fill the word input with the first recognised word and look it up
+        document.getElementById('word').value = data.words[0];
+        photoStatus.textContent = `Recognised: ${data.words.join(' · ')}`;
+        doLookup();
+      } else {
+        photoStatus.textContent = 'No Hebrew text detected — try a clearer photo.';
+      }
+    } catch (e) {
+      photoStatus.textContent = 'Upload failed.';
+    } finally {
+      input.value = '';
     }
   }
 
