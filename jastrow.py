@@ -103,6 +103,9 @@ _QUICK_GLOSSES: dict[str, str] = {
     # ── Discourse / logic particles ──────────────────────────────────────────
     "מאי":        "what?",
     "מאן":        "who?",
+    "מני":        "who? — who is the tanna/author of this teaching?",
+    "מנו":        "who is he? who is it?",
+    "מנא":        "from where?",
     "היכי":       "how?",
     "הכי":        "so; thus; in this way",
     "הכא":        "here",

@@ -421,7 +421,7 @@
 <div class="container">
 
   <header>
-    <h1>Gemara Pen <span class="version-badge">v2.3</span></h1>
+    <h1>Gemara Pen <span class="version-badge">v2.4</span></h1>
     <p>Aramaic &amp; Hebrew dictionary for Talmud study</p>
   </header>
 
@@ -715,7 +715,11 @@
       </div>`;
     }
 
-    for (const e of data.entries) {
+    // Don't show Jastrow cards for prefix-fallback matches (wrong words)
+    // or when a quick-gloss already gives the correct answer
+    const showEntries = data.match_type !== 'prefix' && data.match_type !== 'quick';
+
+    for (const e of showEntries ? data.entries : []) {
       const [label, cls] = LANG_LABEL[e.lang] || [null, null];
       const badge = label ? `<span class="lang-badge ${cls}">${label}</span>` : '';
       const uid = Math.random().toString(36).slice(2);

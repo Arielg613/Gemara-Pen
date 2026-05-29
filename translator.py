@@ -79,8 +79,35 @@ def strip_nikud(text: str) -> str:
     return re.sub(r"[֑-ׇ]", "", text)
 
 
+def _word_match(needle: str, haystack: str) -> bool:
+    """True if needle appears as a standalone word (or with ≤1 Hebrew prefix letter).
+
+    Prevents מני matching inside מניין, while allowing ומני (ו+מני).
+    """
+    stripped = strip_nikud(haystack)
+    pos = 0
+    n = len(needle)
+    while True:
+        pos = stripped.find(needle, pos)
+        if pos == -1:
+            return False
+        # Nothing Hebrew must follow the needle
+        after_ok = (pos + n >= len(stripped)) or (stripped[pos + n] not in 'אבגדהוזחטיכלמנסעפצקרשת')
+        if after_ok:
+            # Before: start-of-string, non-Hebrew, or exactly one Hebrew letter
+            if pos == 0:
+                return True
+            prev = stripped[pos - 1]
+            if prev not in 'אבגדהוזחטיכלמנסעפצקרשת':
+                return True   # space/punctuation directly before
+            # Exactly one Hebrew prefix letter?
+            if pos == 1 or stripped[pos - 2] not in 'אבגדהוזחטיכלמנסעפצקרשת':
+                return True
+        pos += 1
+
+
 def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> list:
-    """Search for a word across all daf in a tractate."""
+    """Search for a word across all daf in a tractate (whole-word match only)."""
     data = _load_tractate(tractate)
     needle = strip_nikud(word)
     results = []
@@ -92,7 +119,7 @@ def search_word_in_tractate(word: str, tractate: str, max_results: int = 30) -> 
         heb_daf = heb_list[daf_idx] or []
         eng_daf = eng_list[daf_idx] if daf_idx < len(eng_list) else []
         for i, heb in enumerate(heb_daf):
-            if isinstance(heb, str) and needle in strip_nikud(heb):
+            if isinstance(heb, str) and _word_match(needle, heb):
                 eng = eng_daf[i] if i < len(eng_daf) and isinstance(eng_daf[i], str) else ""
                 results.append({
                     "daf": daf_idx,
@@ -157,7 +184,7 @@ def search_word_in_daf(word: str, tractate: str, daf: str, amud: str = "a") -> l
     results = []
 
     for i, heb in enumerate(heb_daf):
-        if isinstance(heb, str) and needle in strip_nikud(heb):
+        if isinstance(heb, str) and _word_match(needle, heb):
             eng = eng_daf[i] if i < len(eng_daf) and isinstance(eng_daf[i], str) else ""
             results.append({
                 "segment": i + 1,
