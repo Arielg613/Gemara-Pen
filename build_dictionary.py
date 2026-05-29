@@ -250,13 +250,13 @@ def _get_token() -> str:
 def _claude_call(token: str, prompt: str) -> str:
     """POST one messages request and return the response text."""
     # Determine header style: sk-ant- prefix = API key, otherwise Bearer JWT
-    if token.startswith("sk-ant-"):
+    if token.startswith("sk-ant-api"):   # regular API key
         headers = {
             "x-api-key":         token,
             "anthropic-version": "2023-06-01",
             "content-type":      "application/json",
         }
-    else:
+    else:                                # JWT session token → Bearer
         headers = {
             "Authorization":     f"Bearer {token}",
             "anthropic-version": "2023-06-01",
