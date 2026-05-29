@@ -7,16 +7,29 @@ need internet. The dictionary lookup itself does not.
 
 Endpoints:
   GET  /                  the web UI
-  POST /lookup            dictionary lookup (the brain)        {word}
+  POST /lookup            dictionary lookup (the brain)        {word, tractate?}
   POST /translate         passage search via Sefaria           {word, tractate, daf, amud}
+  POST /ocr               Rashi-script OCR (base64 image)      {image_b64, lang?}
   POST /precache          warm the tractate cache (background)
   GET  /precache/status   progress of /precache
 """
 
+import base64
+import io
+import os
 import threading
 from flask import Flask, jsonify, render_template, request
 from jastrow import analyze as jastrow_analyze, expand_abbreviation, lookup_phrase
 from translator import TRACTATES, _load_tractate, search_word_in_daf, search_word_in_tractate, search_word_in_all_tractates
+
+# Optional: Rashi-script OCR via pytesseract + tessdata
+_TESSDATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+try:
+    import pytesseract
+    from PIL import Image
+    _OCR_AVAILABLE = True
+except ImportError:
+    _OCR_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -166,6 +179,47 @@ def lookup():
         return jsonify(resp)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/ocr", methods=["POST"])
+def ocr():
+    """Rashi-script (or square-script) OCR from a base64-encoded image.
+
+    Request JSON:
+      image_b64  — base64-encoded image (JPEG/PNG)
+      lang       — tesseract language: "heb_rashi" (default) or "heb_rashi_fast"
+
+    Returns {text, words, lang} or {error}.
+    """
+    if not _OCR_AVAILABLE:
+        return jsonify({"error": "OCR not available on this server (pytesseract not installed)"}), 503
+
+    data = request.get_json()
+    image_b64 = (data.get("image_b64") or "").strip()
+    lang = data.get("lang", "heb_rashi")
+
+    if lang not in ("heb_rashi", "heb_rashi_fast"):
+        lang = "heb_rashi"
+
+    if not image_b64:
+        return jsonify({"error": "No image provided."}), 400
+
+    try:
+        img_bytes = base64.b64decode(image_b64)
+        img = Image.open(io.BytesIO(img_bytes)).convert("L")  # greyscale
+
+        # Point tesseract at our bundled tessdata
+        cfg = f"--tessdata-dir {_TESSDATA_DIR} --psm 6"
+        text = pytesseract.image_to_string(img, lang=lang, config=cfg).strip()
+
+        # Strip non-Hebrew garbage characters that tesseract sometimes emits
+        import re
+        words = [w for w in re.sub(r'[^א-תװ-״\s]', ' ', text).split()
+                 if len(w) >= 2]
+
+        return jsonify({"text": text, "words": words, "lang": lang})
+    except Exception as e:
+        return jsonify({"error": f"OCR failed: {e}"}), 500
 
 
 @app.route("/precache", methods=["POST"])
