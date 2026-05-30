@@ -4,6 +4,13 @@
 A physical scanning pen. User sets tractate + daf on the pen, scans a word,
 pen returns the correct translation for that word in that specific context.
 
+**CRITICAL RULE — Individual words always come first:**
+Every single word in the tractate must have its own dictionary entry so the
+pen can always return a translation for any individual scanned word.
+Bigrams and trigrams are BONUS entries layered on top — they never replace
+single-word entries. A word that only appears inside a phrase still gets its
+own standalone entry.
+
 ---
 
 ## Dictionary Pipeline Rules (per tractate)
