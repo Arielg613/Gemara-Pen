@@ -233,10 +233,63 @@ def fix_unmatched(word_contexts: dict, real_dict: dict) -> dict:
     return real_dict
 
 
-# ── Part 2: Detect and add bigram phrases ────────────────────────────────────
+# ── Part 2: Detect and add bigram + trigram phrases ──────────────────────────
+
+PHRASE_SYSTEM = """You are a Talmudic Aramaic/Hebrew lexicographer.
+For each numbered phrase (two or three Aramaic/Hebrew words), give a short English translation (1–8 words).
+If it is a well-known Talmudic idiom (e.g. תָּא שְׁמַע = "come and hear", הַקָּדוֹשׁ בָּרוּךְ הוּא = "The Holy One, Blessed be He"), use the standard translation.
+Otherwise translate literally.
+NEVER return "?". Always give your best translation.
+Respond ONLY with JSON: {"1": "translation", "2": "translation", ...}"""
+
+
+def _translate_phrase_batch(token: str, candidates: list, count_map: dict, context_map: dict, tractate: str) -> dict:
+    """Translate a list of phrase strings via Claude, return phrase_dict entries."""
+    phrase_dict: dict = {}
+    total = len(candidates)
+
+    for batch_start in range(0, total, BATCH_SIZE):
+        batch = candidates[batch_start: batch_start + BATCH_SIZE]
+        ctx_lines = "\n".join(
+            f'{i+1}. Phrase: {ph}  (appears {count_map[ph]}x)  '
+            f'Context: {context_map[ph][1][:100]}'
+            for i, ph in enumerate(batch)
+        )
+
+        for attempt in range(3):
+            try:
+                raw = _claude_call(token, PHRASE_SYSTEM, f"Translate each phrase. JSON only.\n\n{ctx_lines}")
+                m = re.search(r'\{.*\}', raw, re.DOTALL)
+                if not m:
+                    raise ValueError(f"No JSON: {raw[:100]}")
+                glosses = json.loads(m.group())
+                for i, ph in enumerate(batch):
+                    g = glosses.get(str(i + 1), "").strip()
+                    if g and g != "?":
+                        aram_seg, eng_seg, daf = context_map[ph]
+                        phrase_dict[ph] = {
+                            "translation": g,
+                            "tractate":    tractate,
+                            "daf":         daf,
+                            "is_phrase":   True,
+                            "frequency":   count_map[ph],
+                        }
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(f"\n    Phrase batch failed: {e}")
+                else:
+                    time.sleep(2 ** attempt)
+
+        done = batch_start + len(batch)
+        print(f"\r  [{done}/{total} phrases]", end="", flush=True)
+
+    print()
+    return phrase_dict
+
 
 def detect_phrases(tractate: str) -> dict:
-    """Download text, find frequent bigrams, translate them via Claude."""
+    """Download text, find frequent bigrams and trigrams, translate via Claude."""
     seder = TRACTATES[tractate]
     heb_url = f"{GCS_BASE}/{quote(seder)}/{quote(tractate)}/Hebrew/merged.json"
     eng_url = f"{GCS_BASE}/{quote(seder)}/{quote(tractate)}/English/merged.json"
@@ -250,9 +303,10 @@ def detect_phrases(tractate: str) -> dict:
     heb_list = heb_resp.json()["text"]
     eng_list = eng_resp.json()["text"]
 
-    # Count bigrams across all segments, also record a representative context
-    bigram_count: Counter = Counter()
-    bigram_context: dict  = {}   # bigram_str → (aram_seg, eng_seg, daf)
+    bigram_count:   Counter = Counter()
+    bigram_context: dict    = {}
+    trigram_count:  Counter = Counter()
+    trigram_context: dict   = {}
 
     for daf_idx in range(2, len(heb_list)):
         heb_segs = flatten(heb_list[daf_idx])
@@ -263,74 +317,48 @@ def detect_phrases(tractate: str) -> dict:
             heb_clean = strip_html(heb)
             eng = strip_html(eng_segs[i]) if i < len(eng_segs) else ""
             words = split_words(heb_clean)
-            for j in range(len(words) - 1):
-                bigram = words[j] + " " + words[j + 1]
-                bigram_count[bigram] += 1
-                if bigram not in bigram_context:
-                    bigram_context[bigram] = (heb_clean, eng, daf)
 
-    # Keep bigrams above frequency threshold, not already in dict
-    candidates = [(bg, cnt) for bg, cnt in bigram_count.items() if cnt >= PHRASE_MIN_FREQ]
-    candidates.sort(key=lambda x: -x[1])
-    print(f"  Bigrams with freq ≥ {PHRASE_MIN_FREQ}: {len(candidates)}")
+            for j in range(len(words) - 1):
+                bg = words[j] + " " + words[j + 1]
+                bigram_count[bg] += 1
+                if bg not in bigram_context:
+                    bigram_context[bg] = (heb_clean, eng, daf)
+
+            for j in range(len(words) - 2):
+                tg = words[j] + " " + words[j + 1] + " " + words[j + 2]
+                trigram_count[tg] += 1
+                if tg not in trigram_context:
+                    trigram_context[tg] = (heb_clean, eng, daf)
+
+    bigram_candidates = sorted(
+        [(bg, cnt) for bg, cnt in bigram_count.items() if cnt >= PHRASE_MIN_FREQ],
+        key=lambda x: -x[1]
+    )
+    trigram_candidates = sorted(
+        [(tg, cnt) for tg, cnt in trigram_count.items() if cnt >= PHRASE_MIN_FREQ],
+        key=lambda x: -x[1]
+    )
+    print(f"  Bigrams  with freq ≥ {PHRASE_MIN_FREQ}: {len(bigram_candidates)}")
+    print(f"  Trigrams with freq ≥ {PHRASE_MIN_FREQ}: {len(trigram_candidates)}")
 
     token = _get_token()
     if not token:
         print("  No token — skipping phrase translation.")
         return {}
 
-    # Translate bigrams via Claude
-    phrase_words = [bg for bg, _ in candidates]
-    total = len(phrase_words)
-    print(f"  Translating {total} candidate phrases…")
-
     phrase_dict: dict = {}
 
-    PHRASE_SYSTEM = """You are a Talmudic Aramaic/Hebrew lexicographer.
-For each numbered phrase (two Aramaic/Hebrew words), give a short English translation (1–6 words).
-If it is a well-known Talmudic idiom (e.g. תָּא שְׁמַע = "come and hear"), use the standard translation.
-Otherwise translate literally.
-NEVER return "?". Always give your best translation.
-Respond ONLY with JSON: {"1": "translation", "2": "translation", ...}"""
+    print(f"  Translating {len(bigram_candidates)} bigrams…")
+    phrase_dict.update(_translate_phrase_batch(
+        token, [bg for bg, _ in bigram_candidates], bigram_count, bigram_context, tractate
+    ))
 
-    for batch_start in range(0, total, BATCH_SIZE):
-        batch = phrase_words[batch_start: batch_start + BATCH_SIZE]
-        ctx_lines = "\n".join(
-            f'{i+1}. Phrase: {bg}  (appears {bigram_count[bg]}x)  '
-            f'Context: {bigram_context[bg][1][:100]}'
-            for i, bg in enumerate(batch)
-        )
+    print(f"  Translating {len(trigram_candidates)} trigrams…")
+    phrase_dict.update(_translate_phrase_batch(
+        token, [tg for tg, _ in trigram_candidates], trigram_count, trigram_context, tractate
+    ))
 
-        for attempt in range(3):
-            try:
-                raw = _claude_call(token, PHRASE_SYSTEM, f"Translate each phrase. JSON only.\n\n{ctx_lines}")
-                m = re.search(r'\{.*\}', raw, re.DOTALL)
-                if not m:
-                    raise ValueError(f"No JSON: {raw[:100]}")
-                glosses = json.loads(m.group())
-                for i, bg in enumerate(batch):
-                    g = glosses.get(str(i + 1), "").strip()
-                    if g and g != "?":
-                        aram_seg, eng_seg, daf = bigram_context[bg]
-                        phrase_dict[bg] = {
-                            "translation": g,
-                            "root":        "",   # phrases don't have a single root
-                            "tractate":    tractate,
-                            "daf":         daf,
-                            "is_phrase":   True,
-                            "frequency":   bigram_count[bg],
-                        }
-                break
-            except Exception as e:
-                if attempt == 2:
-                    print(f"\n    Phrase batch failed: {e}")
-                else:
-                    time.sleep(2 ** attempt)
-
-        done = batch_start + len(batch)
-        print(f"\r  [{done}/{total} phrases]", end="", flush=True)
-
-    print(f"\n  Phrases added: {len(phrase_dict)}")
+    print(f"  Total phrases added: {len(phrase_dict)}")
     return phrase_dict
 
 
@@ -369,14 +397,16 @@ def main():
 
     total = len(real_dict)
     words_only = sum(1 for v in real_dict.values() if not v.get("is_phrase"))
-    phrase_count = sum(1 for v in real_dict.values() if v.get("is_phrase"))
+    phrase_count = sum(1 for k, v in real_dict.items() if v.get("is_phrase") and len(k.split()) == 2)
+    trigram_count = sum(1 for k, v in real_dict.items() if v.get("is_phrase") and len(k.split()) == 3)
 
     print("\n" + "=" * 60)
     print("  DONE")
     print("-" * 60)
     print(f"  Total entries    : {total}")
     print(f"  Single words     : {words_only}")
-    print(f"  Phrases (bigrams): {phrase_count}")
+    print(f"  Bigram phrases   : {phrase_count}")
+    print(f"  Trigram phrases  : {trigram_count}")
 
     with open("unmatched.json", encoding="utf-8") as f:
         still_missing = json.load(f)
