@@ -30,10 +30,14 @@ own standalone entry.
 - Keep only tokens that contain at least one Hebrew letter (א–ת)
 - Strip HTML tags before splitting
 
-### Step 4 — Translation via Claude Haiku
+### Step 4 — Translation via Claude Sonnet
+- Model: claude-sonnet-4-6 (NOT Haiku — Sonnet for accuracy)
 - Batch 30 words per API call
-- Prompt rule: use linguistic knowledge first; English passage is a secondary hint
-- Never return "?" — always give best translation
+- Each word gets: translation (1-5 words) + language tag (aramaic/hebrew/greek/persian/other)
+- If word is an abbreviation (contains ׳ or ״): also return full Hebrew form in parentheses
+- If genuinely unknown: return "?" — do NOT guess. Unknown words saved to unmatched.json for review
+- Sefaria validation: after each batch, translations with zero content-word overlap with the
+  Sefaria English are automatically retried with a stronger Sefaria-anchored prompt
 - Translations are NATURAL and complete:
   - Include prefix meaning: השבת = "the Shabbat", בשבת = "on Shabbat"
   - Include suffix meaning: ביתו = "his house", לביתם = "to their house"
@@ -84,16 +88,18 @@ Given: scanned word + current tractate + current daf
 
 ---
 
-## Suggested additions (not yet implemented)
+## Implemented features
 
-### High priority
-1. **Nikud-free lookup index** — build a parallel index stripped of all
-   vowel points so the pen can match scanned words even with partial/no nikud
-2. **Abbreviations table** — common Talmudic shortenings:
-   ת"ל = תנא לישנא / "the text teaches", ק"ו = קל וחומר / "kal vachomer",
-   ר' = רבי / "Rabbi", כ"ש = כל שכן / "all the more so", etc.
-3. **Trigrams** — 3-word phrases like תא שמע מינה ("come and hear from this"),
-   אין הכי נמי ("yes, that is indeed so"), לא קשיא ("no difficulty")
+1. ✓ **Nikud-free lookup index** — `lookup/<Tractate>.json` and `lookup/master.json`
+2. ✓ **Abbreviations table** — `lookup/abbreviations.json` (awaiting full Jastrow data)
+   - When pen scans an abbreviation: returns full Hebrew word + English translation
+   - Source: Jastrow, Hebrew or Aramaic Abbreviations (Sefaria)
+3. ✓ **Trigrams** — 3-word phrases detected and added as bonus entries
+4. ✓ **Language tagging** — every word tagged: aramaic/hebrew/greek/persian/other
+5. ✓ **Sefaria validation** — translations cross-checked against Sefaria English passage
+6. ✓ **Unknown word flagging** — "?" saved to unmatched.json for manual review
+
+## Still to do
 
 ### Medium priority
 4. **Sage name index** — separate list of all Talmudic sage names
