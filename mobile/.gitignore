@@ -1,6 +1,0 @@
-node_modules/
-.expo/
-dist/
-web-build/
-# API key — NEVER commit this
-config.ts

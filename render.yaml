@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: gemara-pen
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 300 --workers 1
-    plan: free
