@@ -210,7 +210,8 @@ Rules:
 - Give ONLY the core meaning of the word itself — not the whole sentence.
 - If the word is a name (a person or place), return the name as-is.
 - If the word is a grammatical particle (like "and", "of", "that"), say so.
-- If you genuinely cannot determine the word's meaning from context, return "?".
+- NEVER return "?" — always give your best translation even for rare or unusual forms.
+- If a word is rare or unclear, give the most plausible Talmudic/Hebrew/Aramaic gloss.
 - Be consistent: the same root word should get the same basic gloss.
 
 Respond ONLY with a JSON object mapping each number (as a string) to its gloss.
@@ -340,10 +341,55 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
 
 # ── Main ───────────────────────────────────────────────────────────────────
 
+def fix_unmatched():
+    """Re-translate words in unmatched.json and merge into real_dictionary.json."""
+    print("=" * 60)
+    print("  FIXING UNMATCHED: Re-translating words that got '?'")
+    print("=" * 60)
+    with open("unmatched.json", encoding="utf-8") as f:
+        unmatched = json.load(f)
+    with open("word_contexts.json", encoding="utf-8") as f:
+        word_contexts = json.load(f)
+    with open("real_dictionary.json", encoding="utf-8") as f:
+        real_dictionary = json.load(f)
+
+    # Build sub-context for unmatched words only
+    sub_ctx = {w: word_contexts[w] for w in unmatched if w in word_contexts}
+    print(f"  {len(sub_ctx)} words to re-translate…")
+
+    glosses, still_failed = refine_with_claude(sub_ctx)
+
+    new_count = 0
+    for word, gloss in glosses.items():
+        ctx = sub_ctx[word]
+        real_dictionary[word] = {
+            "translation": gloss,
+            "root":        extract_root(word),
+            "tractate":    ctx["tractate"],
+            "daf":         ctx["daf"],
+        }
+        new_count += 1
+
+    with open("real_dictionary.json", "w", encoding="utf-8") as f:
+        json.dump(real_dictionary, f, ensure_ascii=False, indent=2)
+
+    remaining = [w for w in unmatched if w not in glosses]
+    with open("unmatched.json", "w", encoding="utf-8") as f:
+        json.dump(remaining, f, ensure_ascii=False, indent=2)
+
+    print(f"\n  Added {new_count} new translations → real_dictionary.json ({len(real_dictionary)} total)")
+    print(f"  Still unmatched: {len(remaining)}")
+
+
 def main():
     args        = [a for a in sys.argv[1:] if not a.startswith("--")]
     no_refine   = "--no-refine"   in sys.argv
     skip_corpus = "--skip-corpus" in sys.argv   # reuse existing word_contexts.json
+    fix_mode    = "--fix-unmatched" in sys.argv  # re-translate unmatched words only
+
+    if fix_mode:
+        fix_unmatched()
+        return
 
     tractate_arg = args[0] if args else "Megillah"
 
