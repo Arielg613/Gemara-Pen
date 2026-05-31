@@ -215,7 +215,7 @@ For each numbered item you receive, you will be given:
   - The Aramaic/Hebrew sentence it appears in
   - The Sefaria English translation of that sentence
 
-Your job: for each word return TWO things:
+Your job: for each word return THREE things:
   1. "t" — a short (1 to 5 words) English gloss for the individual word
   2. "lang" — the language of the word, one of:
        "aramaic"  — Talmudic Aramaic
@@ -223,6 +223,13 @@ Your job: for each word return TWO things:
        "greek"    — Greek or Latin loanword (e.g. אפותיקי, סנהדרין, אסטרטגוס)
        "persian"  — Persian or Babylonian loanword
        "other"    — any other foreign origin or uncertain
+  3. "pos" — part of speech, one of:
+       "noun"      — noun or noun phrase
+       "verb"      — verb in any conjugation
+       "particle"  — preposition, conjunction, article, or grammatical particle
+       "pronoun"   — personal, demonstrative, or relative pronoun
+       "adjective" — adjective or adverb
+       "name"      — proper name (person, place, tractate)
 
 Rules for translation:
 - Give ONLY the core meaning of the word itself — not the whole sentence.
@@ -233,8 +240,8 @@ Rules for translation:
 - Be consistent: the same root word should get the same basic gloss.
 - Your translation should use vocabulary CONSISTENT with the provided Sefaria English.
 
-Respond ONLY with a JSON object mapping each number (as a string) to an object with "t" and "lang".
-Example: {"1": {"t": "said", "lang": "aramaic"}, "2": {"t": "king", "lang": "hebrew"}, "3": {"t": "Sanhedrin", "lang": "greek"}}"""
+Respond ONLY with a JSON object mapping each number (as a string) to an object with "t", "lang", and "pos".
+Example: {"1": {"t": "said", "lang": "aramaic", "pos": "verb"}, "2": {"t": "king", "lang": "hebrew", "pos": "noun"}, "3": {"t": "Sanhedrin", "lang": "greek", "pos": "name"}}"""
 
 SEFARIA_RETRY_PROMPT = """You are a Talmudic Aramaic/Hebrew lexicographer.
 
@@ -248,9 +255,10 @@ Rules:
 - If you genuinely do not know the word, return exactly "?" — do not guess
 - Your word choice must align with the Sefaria passage translation provided
 - Also identify the language: "aramaic", "hebrew", "greek", "persian", or "other"
+- Also identify the part of speech: "noun", "verb", "particle", "pronoun", "adjective", or "name"
 
-Respond ONLY with a JSON object mapping each number (as a string) to an object with "t" and "lang".
-Example: {"1": {"t": "fed him", "lang": "hebrew"}, "2": {"t": "court", "lang": "aramaic"}}"""
+Respond ONLY with a JSON object mapping each number (as a string) to an object with "t", "lang", and "pos".
+Example: {"1": {"t": "fed him", "lang": "hebrew", "pos": "verb"}, "2": {"t": "court", "lang": "aramaic", "pos": "noun"}}"""
 
 USER_TEMPLATE = """Translate each word. Reply with JSON only.
 
@@ -370,9 +378,11 @@ def _parse_response(raw: str, batch: list, word_contexts: dict,
         if isinstance(entry, dict):
             gloss = entry.get("t", "").strip()
             lang  = entry.get("lang", "aramaic").strip().lower()
+            pos   = entry.get("pos", "").strip().lower()
         else:
             gloss = str(entry).strip()
             lang  = "aramaic"
+            pos   = ""
 
         if not gloss or gloss == "?":
             failed_words.append(word)
@@ -385,7 +395,7 @@ def _parse_response(raw: str, batch: list, word_contexts: dict,
                 needs_retry.append(word)
                 continue
 
-        results[word] = {"t": gloss, "lang": lang}
+        results[word] = {"t": gloss, "lang": lang, "pos": pos}
 
     return needs_retry
 
@@ -568,6 +578,7 @@ def main():
             real_dictionary[word] = {
                 "translation": entry["t"],
                 "lang":        entry.get("lang", "aramaic"),
+                "pos":         entry.get("pos", ""),
                 "root":        extract_root(word),
                 "tractate":    ctx["tractate"],
                 "daf":         ctx["daf"],

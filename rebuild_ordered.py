@@ -70,8 +70,13 @@ TRACTATES_SEDER = {
 }
 
 
-def strip_nikud(text):
-    return re.sub(r'[֑-ׇ]', '', text)
+_SOFIT = str.maketrans('ךםןףץ', 'כמנפצ')
+
+
+def normalize(text):
+    """Strip nikud and normalize final-letter forms (ך→כ, ם→מ, ן→נ, ף→פ, ץ→צ)."""
+    bare = re.sub(r'[֑-ׇ]', '', text)
+    return bare.translate(_SOFIT)
 
 
 def strip_html(text):
@@ -103,7 +108,7 @@ def daf_label(idx):
 
 def extract_root(word):
     PREFIXES = ['ו', 'ה', 'ב', 'ל', 'מ', 'כ', 'ד', 'ש']
-    bare = strip_nikud(word).strip()
+    bare = normalize(word).strip()
     for _ in range(3):
         for pfx in PREFIXES:
             if bare.startswith(pfx) and len(bare) - len(pfx) >= 3:
@@ -126,18 +131,21 @@ def build(tractate):
     bare_to_trans = {}
     bare_to_root  = {}
     bare_to_lang  = {}
+    bare_to_pos   = {}
     for word, node in existing.items():
-        bare = strip_nikud(word)
+        bare = normalize(word)
         if bare not in bare_to_trans:
             if isinstance(node, dict):
                 if 'translation' in node:
                     bare_to_trans[bare] = node['translation']
                     bare_to_root[bare]  = node.get('root', extract_root(word))
                     bare_to_lang[bare]  = node.get('lang', 'aramaic')
+                    bare_to_pos[bare]   = node.get('pos', '')
                 elif 'entries' in node and node['entries']:
                     bare_to_trans[bare] = node['entries'][0]['translation']
                     bare_to_root[bare]  = node.get('root', extract_root(word))
                     bare_to_lang[bare]  = node.get('lang', 'aramaic')
+                    bare_to_pos[bare]   = node.get('pos', '')
 
     print(f"  Translation table: {len(bare_to_trans)} entries")
 
@@ -160,7 +168,7 @@ def build(tractate):
         for seg in heb_segs:
             seg = strip_html(seg)
             for word in split_words(seg):
-                bare = strip_nikud(word)
+                bare = normalize(word)
                 if bare in seen_this_daf:
                     continue
                 seen_this_daf.add(bare)
@@ -168,13 +176,17 @@ def build(tractate):
                 translation = bare_to_trans.get(bare, '')
                 root = bare_to_root.get(bare, extract_root(word))
                 lang = bare_to_lang.get(bare, 'aramaic')
+                pos  = bare_to_pos.get(bare, '')
 
                 if translation:
-                    daf_words.append({
+                    entry = {
                         "word":        word,
                         "translation": translation,
                         "lang":        lang,
-                    })
+                    }
+                    if pos:
+                        entry["pos"] = pos
+                    daf_words.append(entry)
 
         dafs[daf] = daf_words
 

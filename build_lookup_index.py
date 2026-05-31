@@ -24,9 +24,13 @@ DICTIONARIES_DIR = "dictionaries"
 LOOKUP_DIR = "lookup"
 
 
-def strip_nikud(text):
-    # Unicode range U+0591–U+05C7 covers all Hebrew cantillation + nikud
-    return re.sub(r'[֑-ׇ]', '', text)
+_SOFIT = str.maketrans('ךםןףץ', 'כמנפצ')
+
+
+def normalize(text):
+    """Strip nikud and normalize final-letter forms (ך→כ, ם→מ, ן→נ, ף→פ, ץ→צ)."""
+    bare = re.sub(r'[֑-ׇ]', '', text)
+    return bare.translate(_SOFIT)
 
 
 def build_indexes():
@@ -55,7 +59,7 @@ def build_indexes():
         for daf, entries in data['dafs'].items():
             daf_lookup = {}
             for entry in entries:
-                bare = strip_nikud(entry['word'])
+                bare = normalize(entry['word'])
                 translation = entry['translation']
 
                 if bare not in daf_lookup:

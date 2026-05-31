@@ -71,20 +71,27 @@ python build_lookup_index.py
   "tractate": "Megillah",
   "dafs": {
     "2a": [
-      {"word": "מְגִילָּה", "translation": "scroll", "lang": "aramaic"},
-      {"word": "נִקְרֵאת", "translation": "is read", "lang": "aramaic"}
+      {"word": "מְגִילָּה", "translation": "scroll", "lang": "aramaic", "pos": "noun"},
+      {"word": "נִקְרֵאת", "translation": "is read", "lang": "aramaic", "pos": "verb"}
     ]
   }
 }
 ```
 
+Fields per entry:
+- `word` — original form with nikud
+- `translation` — 1–5 word English gloss
+- `lang` — aramaic / hebrew / greek / persian / other
+- `pos` — noun / verb / particle / pronoun / adjective / name
+
 ### Lookup logic (for future pen firmware)
 Given: scanned word + tractate + daf
 1. Check `lookup/abbreviations.json` first
-2. Strip nikud, search current daf
-3. If not found → adjacent dafs (±3)
-4. If not found → whole tractate
-5. If not found → `lookup/master.json` (all tractates)
+2. Normalize scanned word: strip nikud + normalize sofit forms (ך→כ, ם→מ, ן→נ, ף→פ, ץ→צ)
+3. Search current daf
+4. If not found → adjacent dafs (±3)
+5. If not found → whole tractate
+6. If not found → `lookup/master.json` (all tractates)
 
 ---
 
