@@ -91,9 +91,10 @@ Given: scanned word + current tractate + current daf
 ## Implemented features
 
 1. ✓ **Nikud-free lookup index** — `lookup/<Tractate>.json` and `lookup/master.json`
-2. ✓ **Abbreviations table** — `lookup/abbreviations.json` (awaiting full Jastrow data)
+2. ✓ **Abbreviations table** — `lookup/abbreviations.json` (PENDING — placeholder only)
+   - TODO: Run `fetch_abbreviations.py` from local machine to pull full Jastrow list from Sefaria
+   - Script is ready, just needs to be run once and file brought back
    - When pen scans an abbreviation: returns full Hebrew word + English translation
-   - Source: Jastrow, Hebrew or Aramaic Abbreviations (Sefaria)
 3. ✓ **Trigrams** — 3-word phrases detected and added as bonus entries
 4. ✓ **Language tagging** — every word tagged: aramaic/hebrew/greek/persian/other
 5. ✓ **Sefaria validation** — translations cross-checked against Sefaria English passage
