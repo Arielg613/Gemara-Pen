@@ -200,35 +200,96 @@ def build_corpus(tractate_names: list[str]) -> dict:
 SYSTEM_PROMPT = """You are a Talmudic Aramaic/Hebrew lexicographer.
 
 For each numbered item you receive, you will be given:
-  - An Aramaic word (with nikud/vowel points)
-  - The Aramaic sentence it appears in
-  - The English translation of that sentence
+  - A word (with nikud/vowel points)
+  - The Aramaic/Hebrew sentence it appears in
+  - The Sefaria English translation of that sentence
 
-Your job: extract a short (1 to 5 words) English gloss for the individual Aramaic word.
+Your job: for each word return TWO things:
+  1. "t" — a short (1 to 5 words) English gloss for the individual word
+  2. "lang" — the language of the word, one of:
+       "aramaic"  — Talmudic Aramaic
+       "hebrew"   — Mishnaic or Biblical Hebrew
+       "greek"    — Greek or Latin loanword (e.g. אפותיקי, סנהדרין, אסטרטגוס)
+       "persian"  — Persian or Babylonian loanword
+       "other"    — any other foreign origin or uncertain
 
-Rules:
+Rules for translation:
 - Give ONLY the core meaning of the word itself — not the whole sentence.
-- If the word is a name (a person or place), return the name as-is.
+- If the word is a name (person or place), return the name as-is.
 - If the word is a grammatical particle (like "and", "of", "that"), say so.
 - NEVER return "?" — always give your best translation even for rare or unusual forms.
-- If a word is rare or unclear, give the most plausible Talmudic/Hebrew/Aramaic gloss.
 - Be consistent: the same root word should get the same basic gloss.
+- Your translation should use vocabulary CONSISTENT with the provided Sefaria English.
 
-Respond ONLY with a JSON object mapping each number (as a string) to its gloss.
-Example response: {"1": "said", "2": "king", "3": "and", "4": "Rabbi"}"""
+Respond ONLY with a JSON object mapping each number (as a string) to an object with "t" and "lang".
+Example: {"1": {"t": "said", "lang": "aramaic"}, "2": {"t": "king", "lang": "hebrew"}, "3": {"t": "Sanhedrin", "lang": "greek"}}"""
+
+SEFARIA_RETRY_PROMPT = """You are a Talmudic Aramaic/Hebrew lexicographer.
+
+For each item, the Sefaria English translation of the passage is provided.
+Your word translation MUST use vocabulary consistent with that English translation.
+Translate ONLY the specific word — not the whole sentence.
+
+Rules:
+- 1 to 5 words only for the translation
+- If it is a name, return the name as-is
+- NEVER return "?" — always give your best translation
+- Your word choice must align with the Sefaria passage translation provided
+- Also identify the language: "aramaic", "hebrew", "greek", "persian", or "other"
+
+Respond ONLY with a JSON object mapping each number (as a string) to an object with "t" and "lang".
+Example: {"1": {"t": "fed him", "lang": "hebrew"}, "2": {"t": "court", "lang": "aramaic"}}"""
 
 USER_TEMPLATE = """Translate each word. Reply with JSON only.
 
 {items}"""
 
+# Common English words that don't count as content matches
+_STOPWORDS = {
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'shall', 'can', 'to', 'of', 'in',
+    'for', 'on', 'with', 'at', 'by', 'from', 'and', 'but', 'or', 'not',
+    'so', 'as', 'if', 'that', 'this', 'it', 'its', 'he', 'him', 'his',
+    'she', 'her', 'they', 'them', 'their', 'we', 'us', 'you', 'who',
+    'which', 'what', 'also', 'then', 'there', 'here', 'no', 'nor',
+    'all', 'any', 'some', 'such', 'own', 'same', 'too', 'than', 'into',
+    'about', 'up', 'out', 'my', 'me', 'i', 'one', 'two', 'said', 'says',
+}
+
+
+def _content_words(text: str) -> set:
+    """Lowercase non-stopword tokens of length > 2."""
+    tokens = re.findall(r"[a-zA-Z]+", text.lower())
+    return {t for t in tokens if t not in _STOPWORDS and len(t) > 2}
+
+
+def sefaria_consistent(translation: str, sefaria_eng: str) -> bool:
+    """True if translation shares at least one content word with sefaria_eng."""
+    if not sefaria_eng:
+        return True   # nothing to validate against — assume OK
+    trans_words   = _content_words(translation)
+    sefaria_words = _content_words(sefaria_eng)
+    return bool(trans_words & sefaria_words)
+
 
 def build_item(i: int, word: str, ctx: dict) -> str:
-    aram = ctx["aram"][:120]    # limit segment length for token efficiency
+    aram = ctx["aram"][:120]
     eng  = ctx["eng"][:200]
     return (
         f'{i}. Word: {word}\n'
         f'   Aramaic segment: {aram}\n'
-        f'   English of segment: {eng}'
+        f'   Sefaria English of segment: {eng}'
+    )
+
+
+def build_retry_item(i: int, word: str, ctx: dict) -> str:
+    aram = ctx["aram"][:120]
+    eng  = ctx["eng"][:200]
+    return (
+        f'{i}. Word: {word}\n'
+        f'   Aramaic segment: {aram}\n'
+        f'   Sefaria English (your translation MUST be consistent with this): "{eng}"'
     )
 
 
@@ -248,16 +309,15 @@ def _get_token() -> str:
         return ""
 
 
-def _claude_call(token: str, prompt: str) -> str:
+def _claude_call(token: str, prompt: str, system: str = SYSTEM_PROMPT) -> str:
     """POST one messages request and return the response text."""
-    # Determine header style: sk-ant- prefix = API key, otherwise Bearer JWT
-    if token.startswith("sk-ant-api"):   # regular API key
+    if token.startswith("sk-ant-api"):
         headers = {
             "x-api-key":         token,
             "anthropic-version": "2023-06-01",
             "content-type":      "application/json",
         }
-    else:                                # JWT session token → Bearer
+    else:
         headers = {
             "Authorization":     f"Bearer {token}",
             "anthropic-version": "2023-06-01",
@@ -269,8 +329,8 @@ def _claude_call(token: str, prompt: str) -> str:
         headers=headers,
         json={
             "model":      "claude-sonnet-4-6",
-            "max_tokens": 600,
-            "system":     SYSTEM_PROMPT,
+            "max_tokens": 800,
+            "system":     system,
             "messages":   [{"role": "user", "content": prompt}],
         },
         timeout=60,
@@ -279,10 +339,50 @@ def _claude_call(token: str, prompt: str) -> str:
     return resp.json()["content"][0]["text"].strip()
 
 
+def _parse_response(raw: str, batch: list, word_contexts: dict,
+                    results: dict, failed_words: list, use_sefaria_check: bool = True):
+    """Parse Claude response and populate results. Returns list of words needing retry."""
+    json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not json_match:
+        raise ValueError(f"No JSON in response: {raw[:200]}")
+    glosses = json.loads(json_match.group())
+
+    needs_retry = []
+    for i, word in enumerate(batch):
+        entry = glosses.get(str(i + 1))
+        if not entry:
+            failed_words.append(word)
+            continue
+
+        # Handle both new format {"t":..,"lang":..} and legacy string format
+        if isinstance(entry, dict):
+            gloss = entry.get("t", "").strip()
+            lang  = entry.get("lang", "aramaic").strip().lower()
+        else:
+            gloss = str(entry).strip()
+            lang  = "aramaic"
+
+        if not gloss or gloss == "?":
+            failed_words.append(word)
+            continue
+
+        # Sefaria consistency check
+        if use_sefaria_check:
+            sefaria_eng = word_contexts[word].get("eng", "")
+            if not sefaria_consistent(gloss, sefaria_eng):
+                needs_retry.append(word)
+                continue
+
+        results[word] = {"t": gloss, "lang": lang}
+
+    return needs_retry
+
+
 def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
     """
-    Call Claude Haiku in batches to extract word-level glosses.
-    Returns ({word: gloss}, [failed_words]).
+    Translate words in batches. Validates each translation against Sefaria English.
+    Words that fail validation are retried with a Sefaria-anchored prompt.
+    Returns ({word: {"t": gloss, "lang": lang}}, [failed_words]).
     """
     token = _get_token()
     if not token:
@@ -291,10 +391,11 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
 
     words = list(word_contexts.keys())
     total = len(words)
-    print(f"\n  Refining {total} words with Claude ({(total // BATCH_SIZE) + 1} batches)…")
+    print(f"\n  Translating {total} words with Claude Sonnet ({(total // BATCH_SIZE) + 1} batches)…")
 
-    results: dict[str, str] = {}
-    failed:  list[str]      = []
+    results: dict[str, dict] = {}
+    failed:  list[str]       = []
+    all_needs_retry: list[str] = []
 
     for batch_start in range(0, total, BATCH_SIZE):
         batch = words[batch_start: batch_start + BATCH_SIZE]
@@ -307,21 +408,9 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
         for attempt in range(3):
             try:
                 raw = _claude_call(token, prompt)
-
-                # Parse JSON — Claude sometimes wraps in ```json ... ```
-                json_match = re.search(r"\{.*?\}", raw, re.DOTALL)
-                if not json_match:
-                    raise ValueError(f"No JSON in response: {raw[:200]}")
-                glosses = json.loads(json_match.group())
-
-                for i, word in enumerate(batch):
-                    gloss = glosses.get(str(i + 1), "?").strip()
-                    if gloss and gloss != "?":
-                        results[word] = gloss
-                    else:
-                        failed.append(word)
-                break   # success
-
+                needs_retry = _parse_response(raw, batch, word_contexts, results, failed)
+                all_needs_retry.extend(needs_retry)
+                break
             except Exception as e:
                 if attempt == 2:
                     print(f"\n  Batch {batch_start//BATCH_SIZE + 1} failed: {e}")
@@ -329,13 +418,45 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
                 else:
                     time.sleep(2 ** attempt)
 
-        # Progress bar
         done = batch_start + len(batch)
         pct  = 100 * done // total
         bar  = "█" * (pct // 5) + "░" * (20 - pct // 5)
         print(f"\r  [{bar}] {pct}% — {done}/{total}", end="", flush=True)
 
     print()
+
+    # Retry words that failed Sefaria consistency check
+    if all_needs_retry:
+        print(f"\n  Sefaria validation retry: {len(all_needs_retry)} words…")
+        retry_contexts = {w: word_contexts[w] for w in all_needs_retry}
+
+        for batch_start in range(0, len(all_needs_retry), BATCH_SIZE):
+            batch = all_needs_retry[batch_start: batch_start + BATCH_SIZE]
+            items_text = "\n\n".join(
+                build_retry_item(i + 1, w, retry_contexts[w])
+                for i, w in enumerate(batch)
+            )
+            prompt = USER_TEMPLATE.format(items=items_text)
+
+            for attempt in range(3):
+                try:
+                    raw = _claude_call(token, prompt, system=SEFARIA_RETRY_PROMPT)
+                    # No second Sefaria check on retry — accept whatever comes back
+                    _parse_response(raw, batch, retry_contexts, results, failed,
+                                    use_sefaria_check=False)
+                    break
+                except Exception as e:
+                    if attempt == 2:
+                        failed.extend(batch)
+                    else:
+                        time.sleep(2 ** attempt)
+
+            done = batch_start + len(batch)
+            pct  = 100 * done // len(all_needs_retry)
+            bar  = "█" * (pct // 5) + "░" * (20 - pct // 5)
+            print(f"\r  Retry [{bar}] {pct}%", end="", flush=True)
+        print()
+
     return results, failed
 
 
@@ -430,10 +551,11 @@ def main():
     unmatched: list = []
 
     for word, ctx in word_contexts.items():
-        gloss = glosses.get(word, "")
-        if gloss:
+        entry = glosses.get(word)
+        if entry:
             real_dictionary[word] = {
-                "translation": gloss,
+                "translation": entry["t"],
+                "lang":        entry.get("lang", "aramaic"),
                 "root":        extract_root(word),
                 "tractate":    ctx["tractate"],
                 "daf":         ctx["daf"],

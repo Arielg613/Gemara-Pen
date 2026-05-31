@@ -122,21 +122,22 @@ def build(tractate):
     with open("real_dictionary.json", encoding="utf-8") as f:
         existing = json.load(f)
 
-    # Build a normalized lookup: bare_consonants → translation
-    # (handles nikud variants — maps to first matching translation found)
+    # Build a normalized lookup: bare_consonants → {translation, lang}
     bare_to_trans = {}
     bare_to_root  = {}
+    bare_to_lang  = {}
     for word, node in existing.items():
         bare = strip_nikud(word)
         if bare not in bare_to_trans:
-            # Extract translation from either old flat format or new entries[] format
             if isinstance(node, dict):
                 if 'translation' in node:
                     bare_to_trans[bare] = node['translation']
                     bare_to_root[bare]  = node.get('root', extract_root(word))
+                    bare_to_lang[bare]  = node.get('lang', 'aramaic')
                 elif 'entries' in node and node['entries']:
                     bare_to_trans[bare] = node['entries'][0]['translation']
                     bare_to_root[bare]  = node.get('root', extract_root(word))
+                    bare_to_lang[bare]  = node.get('lang', 'aramaic')
 
     print(f"  Translation table: {len(bare_to_trans)} entries")
 
@@ -166,11 +167,13 @@ def build(tractate):
 
                 translation = bare_to_trans.get(bare, '')
                 root = bare_to_root.get(bare, extract_root(word))
+                lang = bare_to_lang.get(bare, 'aramaic')
 
                 if translation:
                     daf_words.append({
                         "word":        word,
                         "translation": translation,
+                        "lang":        lang,
                     })
 
         dafs[daf] = daf_words
