@@ -268,7 +268,7 @@ def _claude_call(token: str, prompt: str) -> str:
         API_URL,
         headers=headers,
         json={
-            "model":      "claude-haiku-4-5-20251001",
+            "model":      "claude-sonnet-4-6",
             "max_tokens": 600,
             "system":     SYSTEM_PROMPT,
             "messages":   [{"role": "user", "content": prompt}],
