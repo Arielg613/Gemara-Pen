@@ -1,45 +1,337 @@
 {
-  "ר":    "Rabbi",
-  "תל":   "the text teaches (talmud lomar)",
-  "קו":   "kal vachomer (all the more so)",
-  "דה":   "starting word (dibur hamatchil)",
-  "בד":   "court (beit din)",
-  "כש":   "all the more so (kol shekhen)",
-  "שמ":   "learn from this (shema mina)",
-  "הנ":   "yes, indeed (hachi nami)",
-  "מד":   "one who says (man de'amar)",
-  "תר":   "the Rabbis taught (tanu rabbanan)",
-  "קש":   "Shema (kriat shema)",
-  "יט":   "Festival (Yom Tov)",
-  "רה":   "Rosh Hashana",
-  "רח":   "Rosh Chodesh",
-  "בה":   "Beit Hillel",
-  "בש":   "Beit Shammai",
-  "כע":   "everyone (kulei alma)",
-  "מם":   "nevertheless (mikol makom)",
-  "גכ":   "also (gam ken)",
-  "תח":   "Torah scholar (talmid chacham)",
-  "חו":   "God forbid (chas veshalom)",
-  "זל":   "of blessed memory (zichrono livracha)",
-  "עה":   "peace be upon him (alav hashalom)",
-  "לק":   "no difficulty (lo kashya)",
-  "אכ":   "if so (im ken)",
-  "אנ":   "or alternatively (o nami)",
-  "דא":   "another interpretation (davar acher)",
-  "הה":   "the same law applies (hu hadin)",
-  "לא":   "alternative version (lishna acharina)",
-  "ממ":   "nevertheless (mikol makom)",
-  "רשי":  "Rashi",
-  "רמבם": "Maimonides (Rambam)",
-  "רמבן": "Nachmanides (Ramban)",
-  "תוס":  "Tosafot",
-  "ירוש": "Jerusalem Talmud (Yerushalmi)",
-  "רן":   "Ran (Rabbi Nissim)",
-  "רת":   "Rabbeinu Tam",
-  "אר":   "said Rabbi (amar Rabbi)",
-  "אל":   "said to him (amar lei)",
-  "כמ":   "as the teaching (kemo)",
-  "דת":   "Torah law (divrei Torah)",
-  "מר":   "Master / Mar",
-  "פר":   "chapter (perek)"
+  "_source": "Compiled from Jastrow Dictionary abbreviations list and standard Talmudic references",
+  "_note": "Keys are normalized bare Hebrew letters (nikud and geresh/gershayim stripped). Full form and translation provided for each.",
+
+  "ר": {
+    "abbrev": "ר׳",
+    "full": "רַבִּי",
+    "translation": "Rabbi",
+    "note": "Before a name: Rabbi [Name]. E.g. ר׳ עקיבא = Rabbi Akiva"
+  },
+  "רב": {
+    "abbrev": "רַב",
+    "full": "רַב",
+    "translation": "Rav",
+    "note": "Babylonian title. Before a name: Rav [Name]"
+  },
+  "תל": {
+    "abbrev": "ת״ל",
+    "full": "תַּלְמוּד לוֹמַר",
+    "translation": "the text teaches / Scripture states"
+  },
+  "קו": {
+    "abbrev": "ק״ו",
+    "full": "קַל וָחוֹמֶר",
+    "translation": "kal vachomer (a fortiori argument — all the more so)"
+  },
+  "דה": {
+    "abbrev": "ד״ה",
+    "full": "דִּבּוּר הַמַּתְחִיל",
+    "translation": "starting words (heading of a commentary entry)"
+  },
+  "בד": {
+    "abbrev": "ב״ד",
+    "full": "בֵּית דִּין",
+    "translation": "court / rabbinical court"
+  },
+  "כש": {
+    "abbrev": "כ״ש",
+    "full": "כָּל שֶׁכֵּן",
+    "translation": "all the more so / certainly"
+  },
+  "שמ": {
+    "abbrev": "ש״מ",
+    "full": "שְׁמַע מִינַּהּ",
+    "translation": "learn from this / conclude from this"
+  },
+  "הנ": {
+    "abbrev": "ה״נ",
+    "full": "הָכִי נַמִי",
+    "translation": "yes, indeed / so too"
+  },
+  "מד": {
+    "abbrev": "מ״ד",
+    "full": "מַאן דְּאָמַר",
+    "translation": "the one who says / the opinion that holds"
+  },
+  "תר": {
+    "abbrev": "ת״ר",
+    "full": "תָּנוּ רַבָּנַן",
+    "translation": "the Rabbis taught (introduces a beraita)"
+  },
+  "אר": {
+    "abbrev": "א״ר",
+    "full": "אָמַר רַבִּי",
+    "translation": "Rabbi [Name] said"
+  },
+  "אל": {
+    "abbrev": "א״ל",
+    "full": "אָמַר לֵיהּ",
+    "translation": "he said to him"
+  },
+  "כע": {
+    "abbrev": "כ״ע",
+    "full": "כּוּלֵּי עָלְמָא",
+    "translation": "everyone / all opinions agree"
+  },
+  "מם": {
+    "abbrev": "מ״מ",
+    "full": "מִכָּל מָקוֹם",
+    "translation": "nevertheless / in any case"
+  },
+  "הה": {
+    "abbrev": "ה״ה",
+    "full": "הוּא הַדִּין",
+    "translation": "the same law applies / likewise"
+  },
+  "אכ": {
+    "abbrev": "א״כ",
+    "full": "אִם כֵּן",
+    "translation": "if so / in that case"
+  },
+  "לק": {
+    "abbrev": "ל״ק",
+    "full": "לָא קַשְׁיָא",
+    "translation": "no difficulty / it is not difficult"
+  },
+  "דא": {
+    "abbrev": "ד״א",
+    "full": "דָּבָר אַחֵר",
+    "translation": "another interpretation / alternatively"
+  },
+  "אנ": {
+    "abbrev": "א״נ",
+    "full": "אוֹ נַמִי",
+    "translation": "or alternatively / or also"
+  },
+  "גכ": {
+    "abbrev": "ג״כ",
+    "full": "גַּם כֵּן",
+    "translation": "also / likewise"
+  },
+  "חו": {
+    "abbrev": "ח״ו",
+    "full": "חַס וְשָׁלוֹם",
+    "translation": "God forbid"
+  },
+  "זל": {
+    "abbrev": "ז״ל",
+    "full": "זִכְרוֹנוֹ לִבְרָכָה",
+    "translation": "of blessed memory"
+  },
+  "עה": {
+    "abbrev": "ע״ה",
+    "full": "עָלָיו הַשָּׁלוֹם",
+    "translation": "peace be upon him"
+  },
+  "בה": {
+    "abbrev": "ב״ה",
+    "full": "בֵּית הִלֵּל",
+    "translation": "Beit Hillel (school of Hillel)"
+  },
+  "בש": {
+    "abbrev": "ב״ש",
+    "full": "בֵּית שַׁמַּאי",
+    "translation": "Beit Shammai (school of Shammai)"
+  },
+  "קש": {
+    "abbrev": "ק״ש",
+    "full": "קְרִיאַת שְׁמַע",
+    "translation": "the Shema (the recitation)"
+  },
+  "יט": {
+    "abbrev": "י״ט",
+    "full": "יוֹם טוֹב",
+    "translation": "Festival / Jewish holiday"
+  },
+  "רה": {
+    "abbrev": "ר״ה",
+    "full": "רֹאשׁ הַשָּׁנָה",
+    "translation": "Rosh Hashana (Jewish New Year)"
+  },
+  "רח": {
+    "abbrev": "ר״ח",
+    "full": "רֹאשׁ חוֹדֶשׁ",
+    "translation": "Rosh Chodesh (new month)"
+  },
+  "תח": {
+    "abbrev": "ת״ח",
+    "full": "תַּלְמִיד חָכָם",
+    "translation": "Torah scholar"
+  },
+  "לא": {
+    "abbrev": "ל״א",
+    "full": "לִישָׁנָא אַחֲרִינָא",
+    "translation": "alternative version / another formulation"
+  },
+  "רשי": {
+    "abbrev": "רש״י",
+    "full": "רַבִּי שְׁלֹמֹה יִצְחָקִי",
+    "translation": "Rashi (Rabbi Shlomo Yitzchaki)"
+  },
+  "רמבם": {
+    "abbrev": "רמב״ם",
+    "full": "רַבִּי מֹשֶׁה בֶּן מַיְמוֹן",
+    "translation": "Maimonides (Rabbi Moshe ben Maimon)"
+  },
+  "רמבן": {
+    "abbrev": "רמב״ן",
+    "full": "רַבִּי מֹשֶׁה בֶּן נַחְמָן",
+    "translation": "Nachmanides (Rabbi Moshe ben Nachman)"
+  },
+  "תוס": {
+    "abbrev": "תוס׳",
+    "full": "תּוֹסָפוֹת",
+    "translation": "Tosafot (medieval Talmudic commentaries)"
+  },
+  "ירוש": {
+    "abbrev": "ירוש׳",
+    "full": "יְרוּשַׁלְמִי",
+    "translation": "Jerusalem Talmud (Talmud Yerushalmi)"
+  },
+  "רן": {
+    "abbrev": "ר״ן",
+    "full": "רַבֵּנוּ נִסִּים",
+    "translation": "Ran (Rabbeinu Nissim Gerondi)"
+  },
+  "רת": {
+    "abbrev": "ר״ת",
+    "full": "רַבֵּנוּ תָם",
+    "translation": "Rabbeinu Tam (Rabbi Yaakov ben Meir)"
+  },
+  "ריבש": {
+    "abbrev": "ריב״ש",
+    "full": "רַבִּי יִצְחָק בֶּן שֶׁשֶׁת",
+    "translation": "Rivash (Rabbi Yitzchak bar Sheshet)"
+  },
+  "רשבא": {
+    "abbrev": "רשב״א",
+    "full": "רַבִּי שְׁלֹמֹה בֶּן אַדֶּרֶת",
+    "translation": "Rashba (Rabbi Shlomo ben Aderet)"
+  },
+  "ריף": {
+    "abbrev": "רי״ף",
+    "full": "רַבִּי יִצְחָק פַּסִי",
+    "translation": "Rif (Rabbi Yitzchak Alfasi)"
+  },
+  "רוש": {
+    "abbrev": "רו״ש",
+    "full": "רַבֵּנוּ יוֹנָה שַׁאנְץ",
+    "translation": "Rosh (Rabbi Asher ben Jehiel)"
+  },
+  "כו": {
+    "abbrev": "כו׳",
+    "full": "וְכוּלֵּי",
+    "translation": "etc. / and so forth (truncates a longer quote)"
+  },
+  "וכו": {
+    "abbrev": "וכו׳",
+    "full": "וְכוּלֵּי",
+    "translation": "etc. / and so forth"
+  },
+  "גמ": {
+    "abbrev": "גמ׳",
+    "full": "גְּמָרָא",
+    "translation": "Gemara (the Talmudic discussion)"
+  },
+  "משנ": {
+    "abbrev": "משנ׳",
+    "full": "מִשְׁנָה",
+    "translation": "Mishnah"
+  },
+  "הש": {
+    "abbrev": "הש׳",
+    "full": "הַשֵּׁם",
+    "translation": "God (HaShem)"
+  },
+  "ה": {
+    "abbrev": "ה׳",
+    "full": "הַשֵּׁם",
+    "translation": "God (HaShem — the Name)"
+  },
+  "בכ": {
+    "abbrev": "ב״כ",
+    "full": "בְּכָל כָּךְ",
+    "translation": "in any case / by so much"
+  },
+  "עז": {
+    "abbrev": "ע״ז",
+    "full": "עֲבוֹדָה זָרָה",
+    "translation": "idolatry / tractate Avodah Zarah"
+  },
+  "בק": {
+    "abbrev": "ב״ק",
+    "full": "בָּבָא קַמָּא",
+    "translation": "tractate Bava Kamma"
+  },
+  "במ": {
+    "abbrev": "ב״מ",
+    "full": "בָּבָא מְצִיעָא",
+    "translation": "tractate Bava Metzia"
+  },
+  "בב": {
+    "abbrev": "ב״ב",
+    "full": "בָּבָא בַּתְרָא",
+    "translation": "tractate Bava Batra"
+  },
+  "מק": {
+    "abbrev": "מ״ק",
+    "full": "מוֹעֵד קָטָן",
+    "translation": "tractate Moed Katan"
+  },
+  "דת": {
+    "abbrev": "ד״ת",
+    "full": "דִּבְרֵי תוֹרָה",
+    "translation": "words of Torah / Torah matters"
+  },
+  "כמ": {
+    "abbrev": "כ״מ",
+    "full": "כָּל מָקוֹם",
+    "translation": "every place / everywhere"
+  },
+  "עכ": {
+    "abbrev": "ע״כ",
+    "full": "עַל כָּל פָּנִים",
+    "translation": "in any case / at any rate"
+  },
+  "לד": {
+    "abbrev": "ל״ד",
+    "full": "לָא דַּמֵי",
+    "translation": "it is not similar / not comparable"
+  },
+  "מש": {
+    "abbrev": "מ״ש",
+    "full": "מַה שֶּׁכָּתוּב",
+    "translation": "what is written / as written"
+  },
+  "פר": {
+    "abbrev": "פ׳",
+    "full": "פָּרָשָׁה / פֶּרֶק",
+    "translation": "Torah portion / chapter"
+  },
+  "שס": {
+    "abbrev": "ש״ס",
+    "full": "שִׁשָּׁה סְדָרִים",
+    "translation": "Shas (the six orders of the Talmud)"
+  },
+  "עמ": {
+    "abbrev": "ע׳",
+    "full": "עַיֵּן",
+    "translation": "see / refer to"
+  },
+  "תוספ": {
+    "abbrev": "תוספ׳",
+    "full": "תּוֹסֶפְתָּא",
+    "translation": "Tosefta (supplement to the Mishnah)"
+  },
+  "ספר": {
+    "abbrev": "ס׳",
+    "full": "סֵפֶר",
+    "translation": "book"
+  },
+  "שאר": {
+    "abbrev": "שאר",
+    "full": "שְׁאָר",
+    "translation": "the rest / remainder"
+  }
 }
