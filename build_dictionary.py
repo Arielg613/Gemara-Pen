@@ -103,12 +103,23 @@ def flatten(node) -> list[str]:
 
 def split_aramaic_words(text: str) -> list[str]:
     clean = re.sub(r"<[^>]+>", "", text)
+    # Split on whitespace and punctuation, but NOT on geresh (׳) or gershayim (״)
+    # when they appear within/after Hebrew letters — those are abbreviations like ה׳
+    # We strip leading/trailing geresh/gershayim after splitting instead.
     parts = re.split(
-        r"[\s־׀׃׆׳״–—"
-        r",;:()\[\]\"'\.\!\?\-/]+",
+        r"[\s־׀׃׆–—,;:()\[\]\"'\.\!\?\-/]+",
         clean,
     )
-    return [p for p in parts if p and re.search(r"[א-ת]", p)]
+    result = []
+    for p in parts:
+        if not p:
+            continue
+        # Strip surrounding quotation-mark gershayim (used for Bible quotes)
+        # but keep geresh/gershayim that follow Hebrew letters (abbreviations)
+        p = re.sub(r'^״|״$', '', p)   # strip leading/trailing gershayim
+        if p and re.search(r"[א-ת]", p):
+            result.append(p)
+    return result
 
 
 def daf_label(daf_idx: int) -> str:
@@ -217,6 +228,7 @@ Rules for translation:
 - Give ONLY the core meaning of the word itself — not the whole sentence.
 - If the word is a name (person or place), return the name as-is.
 - If the word is a grammatical particle (like "and", "of", "that"), say so.
+- If the word is an abbreviation (contains ׳ or ״), also provide the full Hebrew/Aramaic form in parentheses. Example: ה׳ → "God (הַשֵּׁם)", כו׳ → "etc. (וְכוּלֵּי)".
 - If you genuinely do not know the word, return exactly "?" — do not guess.
 - Be consistent: the same root word should get the same basic gloss.
 - Your translation should use vocabulary CONSISTENT with the provided Sefaria English.
