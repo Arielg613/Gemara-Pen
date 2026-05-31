@@ -217,7 +217,7 @@ Rules for translation:
 - Give ONLY the core meaning of the word itself — not the whole sentence.
 - If the word is a name (person or place), return the name as-is.
 - If the word is a grammatical particle (like "and", "of", "that"), say so.
-- NEVER return "?" — always give your best translation even for rare or unusual forms.
+- If you genuinely do not know the word, return exactly "?" — do not guess.
 - Be consistent: the same root word should get the same basic gloss.
 - Your translation should use vocabulary CONSISTENT with the provided Sefaria English.
 
@@ -233,7 +233,7 @@ Translate ONLY the specific word — not the whole sentence.
 Rules:
 - 1 to 5 words only for the translation
 - If it is a name, return the name as-is
-- NEVER return "?" — always give your best translation
+- If you genuinely do not know the word, return exactly "?" — do not guess
 - Your word choice must align with the Sefaria passage translation provided
 - Also identify the language: "aramaic", "hebrew", "greek", "persian", or "other"
 
