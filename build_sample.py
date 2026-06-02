@@ -21,7 +21,7 @@ TRACTATES = {
 }
 
 GCS_BASE   = "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli"
-BATCH_SIZE = 30
+BATCH_SIZE = 20
 
 TOKEN_FILE = "/home/claude/.claude/remote/.session_ingress_token"
 API_URL    = "https://api.anthropic.com/v1/messages"

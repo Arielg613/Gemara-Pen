@@ -70,7 +70,7 @@ TRACTATES = {
 }
 
 GCS_BASE = "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli"
-BATCH_SIZE = 30   # words per Claude API call
+BATCH_SIZE = 20   # words per Claude API call
 
 
 # ── Utilities ──────────────────────────────────────────────────────────────
@@ -349,7 +349,7 @@ def _claude_call(token: str, prompt: str, system: str = SYSTEM_PROMPT) -> str:
         headers=headers,
         json={
             "model":      "claude-sonnet-4-6",
-            "max_tokens": 800,
+            "max_tokens": 1200,
             "system":     system,
             "messages":   [{"role": "user", "content": prompt}],
         },
