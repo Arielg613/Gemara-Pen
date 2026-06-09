@@ -400,19 +400,46 @@ def _parse_response(raw: str, batch: list, word_contexts: dict,
     return needs_retry
 
 
-def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
+def _call_with_backoff(token: str, prompt: str, system: str, batch_num: int) -> str:
+    """Call Claude with exponential backoff on 429 rate-limit errors."""
+    for attempt in range(6):
+        try:
+            return _claude_call(token, prompt, system)
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 429:
+                wait = int(e.response.headers.get("retry-after", 60)) if attempt < 5 else 0
+                if attempt == 5:
+                    raise
+                print(f"\n  Rate limited on batch {batch_num}, waiting {wait}s…")
+                time.sleep(wait)
+            else:
+                raise
+    raise RuntimeError("unreachable")
+
+
+def refine_with_claude(word_contexts: dict, existing: dict | None = None) -> tuple[dict, list]:
     """
     Translate words in batches. Validates each translation against Sefaria English.
     Words that fail validation are retried with a Sefaria-anchored prompt.
-    Returns ({word: {"t": gloss, "lang": lang}}, [failed_words]).
+    Pass existing={word: entry} to skip already-translated words (resume mode).
+    Returns ({word: {"t": gloss, "lang": lang, "pos": pos}}, [failed_words]).
     """
     token = _get_token()
     if not token:
         print("  No API token found — cannot refine.")
         return {}, list(word_contexts.keys())
 
+    # Skip words already translated (resume mode)
+    if existing:
+        word_contexts = {w: ctx for w, ctx in word_contexts.items() if w not in existing}
+        print(f"  Resuming: {len(existing)} already done, {len(word_contexts)} remaining.")
+
     words = list(word_contexts.keys())
     total = len(words)
+    if total == 0:
+        print("  Nothing to translate.")
+        return {}, []
+
     print(f"\n  Translating {total} words with Claude Sonnet ({(total // BATCH_SIZE) + 1} batches)…")
 
     results: dict[str, dict] = {}
@@ -426,19 +453,18 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
             for i, w in enumerate(batch)
         )
         prompt = USER_TEMPLATE.format(items=items_text)
+        batch_num = batch_start // BATCH_SIZE + 1
 
-        for attempt in range(3):
-            try:
-                raw = _claude_call(token, prompt)
-                needs_retry = _parse_response(raw, batch, word_contexts, results, failed)
-                all_needs_retry.extend(needs_retry)
-                break
-            except Exception as e:
-                if attempt == 2:
-                    print(f"\n  Batch {batch_start//BATCH_SIZE + 1} failed: {e}")
-                    failed.extend(batch)
-                else:
-                    time.sleep(2 ** attempt)
+        try:
+            raw = _call_with_backoff(token, prompt, SYSTEM_PROMPT, batch_num)
+            needs_retry = _parse_response(raw, batch, word_contexts, results, failed)
+            all_needs_retry.extend(needs_retry)
+        except Exception as e:
+            print(f"\n  Batch {batch_num} failed: {e}")
+            failed.extend(batch)
+
+        # Pace requests to stay under rate limit
+        time.sleep(0.3)
 
         done = batch_start + len(batch)
         pct  = 100 * done // total
@@ -459,19 +485,16 @@ def refine_with_claude(word_contexts: dict) -> tuple[dict, list]:
                 for i, w in enumerate(batch)
             )
             prompt = USER_TEMPLATE.format(items=items_text)
+            batch_num = batch_start // BATCH_SIZE + 1
 
-            for attempt in range(3):
-                try:
-                    raw = _claude_call(token, prompt, system=SEFARIA_RETRY_PROMPT)
-                    # No second Sefaria check on retry — accept whatever comes back
-                    _parse_response(raw, batch, retry_contexts, results, failed,
-                                    use_sefaria_check=False)
-                    break
-                except Exception as e:
-                    if attempt == 2:
-                        failed.extend(batch)
-                    else:
-                        time.sleep(2 ** attempt)
+            try:
+                raw = _call_with_backoff(token, prompt, SEFARIA_RETRY_PROMPT, batch_num)
+                _parse_response(raw, batch, retry_contexts, results, failed,
+                                use_sefaria_check=False)
+            except Exception as e:
+                failed.extend(batch)
+
+            time.sleep(0.3)
 
             done = batch_start + len(batch)
             pct  = 100 * done // len(all_needs_retry)
@@ -566,13 +589,22 @@ def main():
     print("\n" + "=" * 60)
     print("  STAGE 2: Extracting word-level translations via Claude")
     print("=" * 60)
-    glosses, failed = refine_with_claude(word_contexts)
 
-    # Build real_dictionary.json
-    real_dictionary: dict = {}
+    # Load existing translations for resume mode (--skip-corpus re-run)
+    existing: dict = {}
+    if skip_corpus and os.path.exists("real_dictionary.json"):
+        with open("real_dictionary.json", encoding="utf-8") as f:
+            existing = json.load(f)
+
+    glosses, failed = refine_with_claude(word_contexts, existing=existing or None)
+
+    # Build real_dictionary.json — merge new glosses with existing
+    real_dictionary: dict = dict(existing)  # keep already-translated words
     unmatched: list = []
 
     for word, ctx in word_contexts.items():
+        if word in real_dictionary:
+            continue  # already had a translation from existing
         entry = glosses.get(word)
         if entry:
             real_dictionary[word] = {
