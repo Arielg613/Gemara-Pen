@@ -1,5 +1,9 @@
 # Gemara Pen — Dictionary Builder
 
+> **New session? Read `STATE.md` first.** This file is the rules; `STATE.md`
+> is where the work actually stands — which tractates are done, what broke
+> last, and what to run next.
+
 ## What This Repo Does
 Builds word-by-word translation dictionaries for every tractate of the Babylonian Talmud.
 Output: one JSON file per tractate in `dictionaries/`, plus nikud-free lookup indexes in `lookup/`.
