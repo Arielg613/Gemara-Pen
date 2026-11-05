@@ -203,6 +203,17 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   with simulated camera damage, and a bit slower. Not worth it — kept the compact one.
   Even the worst simulated shot still found 2a.
 
+- 2026-11-05 — **First real-page scan worked** (Ariel's iPhone, Live mode, Berakhot 46a):
+  found the daf and landed on the right word. What failed was the meaning: בעל → "against"
+  (old one-meaning-per-word Haiku gloss) when it's בעל הבית = the host. Ariel: "this has
+  to be like only show phrases".
+- 2026-11-05 — **Phrase meanings per spot (pilot: 46a).** New `phrases/<Tractate>.json`:
+  per daf, one list per Sefaria segment; each chunk = [number of words, meaning in this
+  spot], written by Claude against Sefaria's bold literal English. build_scan_data.py
+  checks word counts and adds them as `chunks`. Tapping/aiming any word shows the whole
+  phrase highlighted + its spot meaning ("Meaning here"); dafs without chunks fall back
+  to the old gloss ("General meaning … not checked"). Next: do all of Berakhot this way.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the

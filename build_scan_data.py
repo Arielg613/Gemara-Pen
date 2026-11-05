@@ -8,8 +8,13 @@ Output: docs/scan/<tractate>.json
     "en_source": "William Davidson Edition (Koren / Steinsaltz) via Sefaria",
     "segs":  [[daf, hebrew_with_nikud, english_html], ...],   # Gemara order
     "gloss": {daf: {normalized_word: gloss}},                 # from lookup/<tractate>.json
-    "abbr":  {bare_letters: full_form}                         # abbreviations used in this tractate
+    "abbr":  {bare_letters: full_form},                        # abbreviations used in this tractate
+    "chunks": {segment_index: [[n_words, meaning], ...]}       # from phrases/<tractate>.json
   }
+
+phrases/<tractate>.json holds per-spot meanings in phrase chunks, one list per
+Sefaria segment of each daf. Each chunk covers n consecutive words (the same
+words the app counts: tokens with at least one Hebrew letter).
 
 Hebrew comes from Sefaria's GCS export (same source as build_dictionary.py).
 English keeps only <b> tags. In the William Davidson edition, bold text is the
@@ -93,6 +98,38 @@ def abbreviations(segs: list) -> dict:
     return out
 
 
+HEB_WORD = re.compile(r"[\u05d0-\u05ea\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4-\u05c7\u05f3\u05f4'\"]+")
+
+
+def word_count(he: str) -> int:
+    return sum(1 for t in HEB_WORD.findall(he) if re.search(r"[\u05d0-\u05ea]", t))
+
+
+def load_chunks(tractate: str, segs: list) -> dict:
+    """phrases/<tractate>.json → {global segment index: chunks}, checked word-for-word."""
+    try:
+        src = json.load(open(f"phrases/{tractate}.json", encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    starts = {}
+    for i, s in enumerate(segs):
+        starts.setdefault(s[0], i)
+    out = {}
+    for daf, lists in src.items():
+        if daf.startswith("_"):
+            continue
+        a = starts[daf]
+        n_segs = sum(1 for s in segs if s[0] == daf)
+        if len(lists) != n_segs:
+            sys.exit(f"phrases {daf}: {len(lists)} segment lists, text has {n_segs}")
+        for k, chunks in enumerate(lists):
+            want, got = word_count(segs[a + k][1]), sum(c[0] for c in chunks)
+            if want != got:
+                sys.exit(f"phrases {daf} segment {k}: chunks cover {got} words, text has {want}")
+            out[str(a + k)] = chunks
+    return out
+
+
 def daf_label(idx: int) -> str:
     return f"{(idx - 2) // 2 + 2}{'a' if (idx - 2) % 2 == 0 else 'b'}"
 
@@ -114,11 +151,12 @@ def main():
         "segs": segs,
         "gloss": gloss,
         "abbr": abbreviations(segs),
+        "chunks": load_chunks(tractate, segs),
     }
     path = f"docs/scan/{tractate}.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"{path}: {len(segs)} segments, {len(gloss)} dafs, {len(out['abbr'])} abbreviations")
+    print(f"{path}: {len(segs)} segments, {len(gloss)} dafs, {len(out['abbr'])} abbreviations, {len(out['chunks'])} segments with phrase meanings")
 
 
 if __name__ == "__main__":
