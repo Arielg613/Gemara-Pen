@@ -176,6 +176,12 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   licensed sources (CC-BY-NC, e.g. most Sefaria translations) are fine to use. The
   "selling needs permission" concern below only matters if that ever changes.
 
+- 2026-11-05 — **Recent scans view (Ariel asked):** every Capture / photo / tapped Live
+  scan is saved on the device (IndexedDB, last 30): the picture, the raw OCR text, and a
+  word-by-word comparison with the real text (green right, yellow misread with the OCR
+  form above, grey missed, red junk) plus "% words exactly right". Settings switch, on.
+  Use these to judge real-page OCR before changing the scanner.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the

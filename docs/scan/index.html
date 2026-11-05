@@ -93,6 +93,27 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 #camCard .cg{font-size:19px;font-weight:650}
 #camCard .cm{font-size:13px;color:#6b6b70}
 #camLive.on{background:#1e7a46;color:#fff;border-color:#1e7a46}
+.hrow{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer;color:var(--ink);text-decoration:none}
+.hrow img{width:96px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:none}
+#hist{position:fixed;inset:0;z-index:25;background:var(--bg);overflow:auto;display:none;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+#hist.open{display:block}
+#hist .hbar{position:sticky;top:0;background:var(--bg);display:flex;gap:12px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 0 10px;z-index:2}
+#histBody{max-width:900px;margin:0 auto}
+.himg{width:100%;max-height:55vh;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.stats div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;min-width:84px}
+.stats b{display:block;font-size:22px}
+.stats span{font-size:12px;color:var(--muted)}
+.text.cmp{font-size:22px;line-height:2.6;margin-top:6px}
+.text.cmp.small{font-size:17px;line-height:2.2}
+.cw{border-radius:5px;padding:1px 3px}
+.cw.ok{background:var(--official-bg)}
+.cw.near,.cw.wrong{background:var(--ai-bg)}
+.cw.wrong{outline:1px solid var(--ai)}
+.cw rt{font-size:12px;color:var(--ai);font-family:-apple-system,sans-serif}
+.cw.missed{color:var(--muted);text-decoration:underline dotted}
+.cw.extra{background:#fde2e1;color:#a1261b}
+@media (prefers-color-scheme: dark){ .cw.extra{background:#3d1a18;color:#ff8f86} }
 .set{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:15px}
 .set input{width:22px;height:22px}
 .hits a{display:block;padding:8px 0;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none;cursor:pointer}
@@ -144,8 +165,15 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 
   <div class="card hits" id="hitsCard" style="display:none"></div>
 
+  <div class="card" id="histCard">
+    <div class="row" style="justify-content:space-between"><b>Recent scans</b><button id="histClear" class="small" style="min-height:36px;padding:6px 12px">Clear all</button></div>
+    <div class="small muted" style="margin:4px 0 6px">Tap one to see the picture, what the OCR read, and how close it got to the real text.</div>
+    <div id="histList"></div>
+  </div>
+
   <div class="card">
     <b>Settings</b>
+    <label class="set"><input type="checkbox" id="optHist"> Save recent scans (photo + what OCR read)</label>
     <label class="set"><input type="checkbox" id="optAbbr"> Spell out abbreviations (גמ׳ → גמרא)</label>
   </div>
 
@@ -172,6 +200,11 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
   <div class="small muted" id="sWhere"></div>
   <div style="margin-top:12px"><span class="badge off">Official · Sefaria (William Davidson / Steinsaltz)</span></div>
   <div class="en" id="sEn"></div>
+</div>
+
+<div id="hist" role="dialog" aria-label="Scan details">
+  <div class="hbar"><button id="histClose">‹ Back</button><b>Scan details</b></div>
+  <div id="histBody"></div>
 </div>
 
 <div id="cam">
@@ -208,7 +241,7 @@ let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new
 let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
 
 // ── Settings (per device) ─────────────────────────────────────────────────
-const OPTS = {abbr:true};
+const OPTS = {abbr:true, hist:true};
 try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
 const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
 const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -541,6 +574,7 @@ async function runOcr(canvas, psm, point){
     $("photo").src = canvas.toDataURL("image/jpeg",.6); $("photo").style.display="block";
     $("photoHint").style.display = res.picks.length ? "block" : "none";
     showResult(res);
+    saveScan(canvas, data, res, point ? "Camera" : "Photo");
     if(point && res.picks.length){
       const w = wordAt(lastScan.words, point.x, point.y);
       const p = w && alignWord(lastScan.words, w, res);
@@ -568,6 +602,130 @@ $("photo").onclick=e=>{
   const p=w && alignWord(lastScan.words, w, lastScan.res);
   if(p!=null) selectToken(p);
 };
+
+// ── Recent scans: what the camera saw vs what OCR read vs the real text ───
+// Word-level local alignment (Smith–Waterman) of the OCR words against the
+// real text around the spot found, so every word gets a verdict.
+function compareScan(words, res){
+  const ocr = (words||[]).map(w=>({t:w.text, k:matchKey(w.text)})).filter(o=>o.k);
+  const out = {pairs:[], before:[], after:[], exact:0, near:0, extra:0, missed:0, nOcr:ocr.length};
+  if(!res.picks.length || !ocr.length){ out.before=ocr.map(o=>o.t); out.extra=ocr.length; return out; }
+  const c=res.picks[0][1], a=segStart[Math.max(0,c-6)], b=segStart[Math.min(segs.length,c+7)];
+  const n=ocr.length, m=b-a, W=m+1;
+  const H=new Float32Array((n+1)*W), dir=new Uint8Array((n+1)*W);
+  let bi=0, bj=0, bv=0;
+  for(let i=1;i<=n;i++) for(let j=1;j<=m;j++){
+    const s=sim(ocr[i-1].k, tokens[a+j-1]), sub = s===1 ? 2 : s>0 ? 1 : -1;
+    let v=0, d=0;
+    const dg=H[(i-1)*W+j-1]+sub, up=H[(i-1)*W+j]-1, lf=H[i*W+j-1]-1;
+    if(dg>v){ v=dg; d=1; } if(up>v){ v=up; d=2; } if(lf>v){ v=lf; d=3; }
+    H[i*W+j]=v; dir[i*W+j]=d;
+    if(v>bv){ bv=v; bi=i; bj=j; }
+  }
+  let i=bi, j=bj; const pairs=[];
+  while(i>0 && j>0 && H[i*W+j]>0){
+    const d=dir[i*W+j];
+    if(d===1){ const s=sim(ocr[i-1].k,tokens[a+j-1]); pairs.push([ocr[i-1].t, tokenWord(a+j-1), s===1?"ok":s>0?"near":"wrong"]); i--; j--; }
+    else if(d===2){ pairs.push([ocr[i-1].t, "", "extra"]); i--; }
+    else { pairs.push(["", tokenWord(a+j-1), "missed"]); j--; }
+  }
+  pairs.reverse();
+  out.pairs=pairs; out.seg=tokSeg[a+Math.max(0,j)];
+  out.before=ocr.slice(0,i).map(o=>o.t); out.after=ocr.slice(bi).map(o=>o.t);
+  for(const p of pairs){ if(p[2]==="ok") out.exact++; else if(p[2]==="near"||p[2]==="wrong") out.near++; else if(p[2]==="extra") out.extra++; else out.missed++; }
+  out.extra += out.before.length + out.after.length;
+  return out;
+}
+
+// IndexedDB (photos are too big for localStorage). Per device; last 30 scans.
+const HIST_MAX = 30;
+let dbP=null;
+function db(){
+  if(!dbP) dbP = new Promise((ok,bad)=>{
+    const r=indexedDB.open("gemara-scan",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("scans",{keyPath:"id"});
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>bad(r.error);
+  });
+  return dbP;
+}
+async function store(mode, fn){
+  const d=await db();
+  return new Promise((ok,bad)=>{ const tx=d.transaction("scans",mode); const r=fn(tx.objectStore("scans")); tx.oncomplete=()=>ok(r&&r.result); tx.onerror=()=>bad(tx.error); });
+}
+async function allScans(){ try{ return ((await store("readonly", s=>s.getAll()))||[]).sort((x,y)=>y.id-x.id); }catch(e){ return []; } }
+
+async function saveScan(canvas, data, res, how){
+  if(!OPTS.hist) return;
+  try{
+    const sc=Math.min(1, 1000/canvas.width), t=document.createElement("canvas");
+    t.width=Math.round(canvas.width*sc); t.height=Math.round(canvas.height*sc);
+    t.getContext("2d").drawImage(canvas,0,0,t.width,t.height);
+    const cmp=compareScan(data.words, res);
+    const rec={id:Date.now(), how, img:t.toDataURL("image/jpeg",.6), text:data.text,
+      daf:res.picks.length?segs[res.picks[0][1]][0]:null, seg:res.picks.length?res.picks[0][1]:null,
+      conf:res.picks.length?confLevel(res):"—", ms:res.ms||null, cmp};
+    await store("readwrite", s=>s.put(rec));
+    const all=await allScans();
+    if(all.length>HIST_MAX) await store("readwrite", s=>{ for(const r of all.slice(HIST_MAX)) s.delete(r.id); });
+    renderHistList();
+  }catch(e){ console.warn("history", e); }
+}
+
+const pct = (a,b)=> b ? Math.round(100*a/b) : 0;
+function cmpScore(c){ const real=c.exact+c.near+c.missed; return {real, read:pct(c.exact,real)}; }
+
+async function renderHistList(){
+  const el=$("histList"); if(!el) return;
+  const all=await allScans();
+  $("histCard").style.display = OPTS.hist ? "" : "none";
+  if(!all.length){ el.innerHTML=`<div class="small muted">No scans yet. Every scan you take is saved here (on this device only).</div>`; return; }
+  el.innerHTML="";
+  for(const r of all){
+    const s=cmpScore(r.cmp), a=document.createElement("a"); a.className="hrow";
+    a.innerHTML=`<img src="${r.img}" alt=""><div><div><b>${r.daf?TRACTATE+" "+esc(r.daf):"Not found"}</b> · ${esc(r.conf)}</div>
+      <div class="small muted">${new Date(r.id).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} · ${esc(r.how)}</div>
+      <div class="small">${r.daf?`OCR got <b>${s.read}%</b> of words exactly right (${r.cmp.exact} of ${s.real})`:`Read ${r.cmp.nOcr} words, no match`}</div></div>`;
+    a.onclick=()=>openScan(r);
+    el.appendChild(a);
+  }
+}
+
+function openScan(r){
+  const c=r.cmp, s=cmpScore(c);
+  const w = p => {
+    const [o,real,k]=p;
+    if(k==="ok") return `<span class="cw ok">${esc(real)}</span>`;
+    if(k==="extra") return `<span class="cw extra" title="OCR read this but it isn't in the text">${esc(o)}</span>`;
+    if(k==="missed") return `<span class="cw missed" title="OCR missed this word">${esc(real)}</span>`;
+    return `<ruby class="cw ${k}">${esc(real)}<rt>${esc(o)}</rt></ruby>`;
+  };
+  $("histBody").innerHTML = `
+    <img class="himg" src="${r.img}" alt="Scanned picture">
+    <div style="margin-top:10px"><b style="font-size:18px">${r.daf?"📍 "+TRACTATE+" "+esc(r.daf):"Couldn't find this spot"}</b>
+      <span class="muted small"> · confidence ${esc(r.conf)}${r.ms?` · ${(r.ms/1000).toFixed(1)} s`:""} · ${new Date(r.id).toLocaleString()}</span></div>
+    ${r.daf?`<div class="stats">
+      <div><b>${s.read}%</b><span>words exactly right</span></div>
+      <div><b>${c.exact}</b><span>right</span></div>
+      <div><b>${c.near}</b><span>misread</span></div>
+      <div><b>${c.missed}</b><span>missed</span></div>
+      <div><b>${c.extra}</b><span>extra / junk</span></div></div>
+    <div class="small muted" style="margin-top:8px">The real text, word by word.
+      <span class="cw ok">green</span> = OCR read it right ·
+      <ruby class="cw near">yellow<rt>OCR</rt></ruby> = misread (what OCR saw is shown above it) ·
+      <span class="cw missed">grey</span> = missed ·
+      <span class="cw extra">red</span> = OCR read something that isn't there</div>
+    <div class="text cmp">${c.pairs.map(w).join(" ")}</div>
+    ${c.before.length||c.after.length?`<div class="small muted" style="margin-top:6px">Also read outside the matched text (other columns, Rashi, margins, or junk):</div>
+      <div class="text cmp small">${[...c.before,...c.after].map(t=>`<span class="cw extra">${esc(t)}</span>`).join(" ")}</div>`:""}`:""}
+    <details style="margin-top:10px" ${r.daf?"":"open"}><summary>Raw OCR text, exactly as read</summary><pre>${esc(r.text||"(nothing)")}</pre></details>
+    <div class="row" style="margin-top:12px">
+      ${r.seg!=null?`<button class="primary" id="histGo">Open this spot</button>`:""}
+      <button id="histDel">Delete this scan</button>
+    </div>`;
+  $("hist").classList.add("open"); $("hist").scrollTop=0;
+  if(r.seg!=null) $("histGo").onclick=()=>{ $("hist").classList.remove("open"); lastHits=new Set(); $("where").textContent=`📍 ${TRACTATE} ${r.daf}`; $("conf").textContent="From a past scan"; $("alts").innerHTML=""; renderRange(Math.max(0,r.seg-2),Math.min(segs.length-1,r.seg+2),null); $("resultCard").scrollIntoView({behavior:"smooth"}); };
+  $("histDel").onclick=async()=>{ try{ await store("readwrite", s=>s.delete(r.id)); }catch(e){} $("hist").classList.remove("open"); renderHistList(); };
+}
 
 // ── Camera ────────────────────────────────────────────────────────────────
 let stream=null, live=recall("gs.live")==="1", liveLast=null;
@@ -636,6 +794,7 @@ $("camCard").onclick=()=>{
   lastScan={words:r.data.words||[], w:r.c.width, h:r.c.height, res:r.res};
   $("photo").src=r.c.toDataURL("image/jpeg",.6); $("photo").style.display="block"; $("photoHint").style.display="block";
   showResult(r.res);
+  saveScan(r.c, r.data, r.res, "Live");
   if(r.p!=null) selectToken(r.p);
 };
 
@@ -659,14 +818,18 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v5";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v6";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
-  $("optAbbr").checked=OPTS.abbr;
+  $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
+  $("optHist").onchange=e=>{ OPTS.hist=e.target.checked; saveOpts(); renderHistList(); };
+  $("histClose").onclick=()=>$("hist").classList.remove("open");
+  $("histClear").onclick=async()=>{ try{ await store("readwrite", s=>s.clear()); }catch(e){} renderHistList(); };
   $("optAbbr").onchange=e=>{ OPTS.abbr=e.target.checked; saveOpts(); };
   try{ await loadData(); }
   catch(e){ $("status").textContent="Couldn't load Berakhot data"; return; }
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
+  renderHistList();
   const saved = +recall("gs.last");
   if(recall("gs.last")!=null && segs[saved]){ showDaf(segs[saved][0], "Where you left off"); lastLoc=saved; }
   if(!("serviceWorker" in navigator)){ offlineState(false, "This browser can't save the app for offline use."); return; }
