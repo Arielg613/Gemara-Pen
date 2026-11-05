@@ -197,6 +197,12 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   step before OCR (median filter → local-light threshold → drop specks). Hard synthetic
   pages: 3/7 → 7/7 found. Settings flag OPTS.clean (on).
 
+- 2026-11-05 — **Tesseract model test:** the app already uses the best Hebrew model in its
+  compact form (tesseract.js `heb` 4.0.0_best_int, 0.6 MB). Tried the full-size float
+  model (tessdata_best, 3.1 MB): identical accuracy on Ariel's Berakhot 2a page, clean and
+  with simulated camera damage, and a bit slower. Not worth it — kept the compact one.
+  Even the worst simulated shot still found 2a.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
