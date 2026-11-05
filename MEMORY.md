@@ -228,6 +228,17 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   Supersedes the earlier "slim box with a screen" idea. The web app's tap-a-word UI is just
   for testing; the device UI should be built to match this.
 
+- 2026-11-05 — **Laser aimer (Ariel: yes).** The device projects a short, eye-safe red line
+  just UNDER the word you're aiming at (like a barcode scanner's aiming line; a dot would
+  cover the letters). It shows only while the middle button is held: hold → aim → release
+  → screen shows the phrase. The camera can also see the line, so it knows exactly which
+  word. The app's camera now draws the same red line instead of the red +.
+- 2026-11-05 — **Screen size still open.** Ariel saw a pen render with a ~1.5" screen and
+  said the screen needs to be bigger. A bigger screen means a flatter, wider body
+  (TV-remote-like wand, ~3" screen) or another shape. The look is NOT settled yet.
+- 2026-11-05 — **Jumping between dafs:** no menu needed. Turn the page, point, press scan;
+  it finds any spot on its own. The arrows only step phrase by phrase.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
