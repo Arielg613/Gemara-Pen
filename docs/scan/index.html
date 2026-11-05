@@ -99,7 +99,12 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 #hist.open{display:block}
 #hist .hbar{position:sticky;top:0;background:var(--bg);display:flex;gap:12px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 0 10px;z-index:2}
 #histBody{max-width:900px;margin:0 auto}
-.himg{width:100%;max-height:55vh;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff}
+.hpic{position:relative}
+.himg{display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff}
+.hov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hov .ob{fill:none;stroke:#2f7de1;stroke-width:2;opacity:.45}
+.hov .pb{fill:rgba(47,125,225,.18);stroke:#1857c4;stroke-width:5}
+.hov .px{stroke:#ff3b30;stroke-width:5;fill:none}
 .stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .stats div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;min-width:84px}
 .stats b{display:block;font-size:22px}
@@ -174,6 +179,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
   <div class="card">
     <b>Settings</b>
     <label class="set"><input type="checkbox" id="optHist"> Save recent scans (photo + what OCR read)</label>
+    <label class="set"><input type="checkbox" id="optSend"> Send scans to Claude for review (sent when there's Wi-Fi)</label>
     <label class="set"><input type="checkbox" id="optAbbr"> Spell out abbreviations (גמ׳ → גמרא)</label>
   </div>
 
@@ -241,7 +247,7 @@ let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new
 let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
 
 // ── Settings (per device) ─────────────────────────────────────────────────
-const OPTS = {abbr:true, hist:true};
+const OPTS = {abbr:true, hist:true, send:true};
 try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
 const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
 const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -543,9 +549,54 @@ function prep(src, sx, sy, sw, sh, maxW=2200){
   const minW = 1400;
   let scale = sw > maxW ? maxW/sw : sw < minW ? minW/sw : 1;
   const c=document.createElement("canvas"); c.width=Math.round(sw*scale); c.height=Math.round(sh*scale);
-  const x=c.getContext("2d"); x.filter="grayscale(1) contrast(1.4)";
+  const x=c.getContext("2d");
   x.drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);
+  if(OPTS.clean !== false){
+    const raw=document.createElement("canvas"); raw.width=c.width; raw.height=c.height;   // kept for Recent scans
+    raw.getContext("2d").drawImage(c,0,0); c.raw=raw;
+    clean(c);
+  }
   return c;
+}
+
+// Camera pictures have grain, shadows and uneven light, and Tesseract reads
+// almost nothing from them as-is. Turn the picture into clean black text on
+// white: smooth the grain, then compare each pixel with its own neighbourhood
+// (so a shadowed corner works as well as a bright one), then drop lone specks.
+// Done by hand on the pixels because Safari ignores canvas filters.
+function clean(c){
+  const W=c.width, H=c.height, x=c.getContext("2d"), im=x.getImageData(0,0,W,H), d=im.data, N=W*H;
+  const g=new Float32Array(N);
+  for(let i=0,j=0;i<N;i++,j+=4) g[i]=.299*d[j]+.587*d[j+1]+.114*d[j+2];
+  const I=new Float64Array((W+1)*(H+1));                       // integral image
+  const sum=(x0,y0,x1,y1)=>I[y1*(W+1)+x1]-I[y0*(W+1)+x1]-I[y1*(W+1)+x0]+I[y0*(W+1)+x0];
+  const integrate=src=>{ for(let y=0;y<H;y++){ let row=0; for(let x=0;x<W;x++){ row+=src[y*W+x]; I[(y+1)*(W+1)+x+1]=I[y*(W+1)+x+1]+row; } } };
+  integrate(g);
+  const s=new Float32Array(N), win=new Float32Array(9);       // 3x3 median: kills grain, keeps edges
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(y===0||x===0||y===H-1||x===W-1){ s[y*W+x]=g[y*W+x]; continue; }
+    let k=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) win[k++]=g[(y+dy)*W+x+dx];
+    for(let a=1;a<9;a++){ const v=win[a]; let b=a-1; while(b>=0 && win[b]>v){ win[b+1]=win[b]; b--; } win[b+1]=v; }
+    s[y*W+x]=win[4];
+  }
+  integrate(s);
+  const r=Math.max(10, Math.round(W/45)), out=new Uint8Array(N);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const x0=Math.max(0,x-r), y0=Math.max(0,y-r), x1=Math.min(W,x+r+1), y1=Math.min(H,y+r+1);
+    const mean=sum(x0,y0,x1,y1)/((x1-x0)*(y1-y0));
+    out[y*W+x] = s[y*W+x] < mean*.86 ? 1 : 0;                  // 1 = ink
+  }
+  // drop specks: ink blobs far smaller than a letter
+  const minArea=Math.max(6, Math.round(W*W/90000)), stack=new Int32Array(N), seen=new Uint8Array(N);
+  for(let i=0;i<N;i++){
+    if(out[i]!==1 || seen[i]) continue;
+    let top=0, n=0; stack[top++]=i; seen[i]=1; const blob=[];
+    while(top){ const p=stack[--top]; blob.push(p); n++; const px=p%W;
+      for(const q of [p-1,p+1,p-W,p+W]){ if(q<0||q>=N||seen[q]||out[q]!==1) continue; if((q===p-1&&px===0)||(q===p+1&&px===W-1)) continue; seen[q]=1; stack[top++]=q; } }
+    if(n<minArea) for(const p of blob) out[p]=0;
+  }
+  for(let i=0,j=0;i<N;i++,j+=4){ const v=out[i]===1?0:255; d[j]=d[j+1]=d[j+2]=v; d[j+3]=255; }
+  x.putImageData(im,0,0);
 }
 
 // One OCR job at a time (live scanning and Capture share the engine).
@@ -571,10 +622,10 @@ async function runOcr(canvas, psm, point){
     const res = locate(data.text);
     res.ms = Math.round(performance.now()-t0);
     lastScan = {words:data.words||[], w:canvas.width, h:canvas.height, res};
-    $("photo").src = canvas.toDataURL("image/jpeg",.6); $("photo").style.display="block";
+    $("photo").src = (canvas.raw||canvas).toDataURL("image/jpeg",.6); $("photo").style.display="block";
     $("photoHint").style.display = res.picks.length ? "block" : "none";
     showResult(res);
-    saveScan(canvas, data, res, point ? "Camera" : "Photo");
+    saveScan(canvas, data, res, point ? "Camera" : "Photo", point);
     if(point && res.picks.length){
       const w = wordAt(lastScan.words, point.x, point.y);
       const p = w && alignWord(lastScan.words, w, res);
@@ -654,22 +705,57 @@ async function store(mode, fn){
 }
 async function allScans(){ try{ return ((await store("readonly", s=>s.getAll()))||[]).sort((x,y)=>y.id-x.id); }catch(e){ return []; } }
 
-async function saveScan(canvas, data, res, how){
-  if(!OPTS.hist) return;
+function jpeg(canvas, maxW, q){
+  const sc=Math.min(1, maxW/canvas.width), t=document.createElement("canvas");
+  t.width=Math.round(canvas.width*sc); t.height=Math.round(canvas.height*sc);
+  t.getContext("2d").drawImage(canvas,0,0,t.width,t.height);
+  return t.toDataURL("image/jpeg",q);
+}
+
+// point = where the red + was (canvas pixels), if this scan used it
+async function saveScan(canvas, data, res, how, point){
+  if(!OPTS.hist && !OPTS.send) return;
   try{
-    const sc=Math.min(1, 1000/canvas.width), t=document.createElement("canvas");
-    t.width=Math.round(canvas.width*sc); t.height=Math.round(canvas.height*sc);
-    t.getContext("2d").drawImage(canvas,0,0,t.width,t.height);
     const cmp=compareScan(data.words, res);
-    const rec={id:Date.now(), how, img:t.toDataURL("image/jpeg",.6), text:data.text,
+    let pick=null;
+    if(point && res.picks.length){
+      const w=wordAt(data.words||[], point.x, point.y), p=w && alignWord(data.words, w, res);
+      pick={ocr:w?w.text:null, box:w?[w.bbox.x0,w.bbox.y0,w.bbox.x1,w.bbox.y1]:null, word:p!=null?tokenWord(p):null};
+    }
+    const photo=canvas.raw||canvas;
+    const rec={id:Date.now(), how, w:canvas.width, h:canvas.height, img:jpeg(photo,1000,.6), seen:jpeg(canvas,1000,.6), text:data.text,
       daf:res.picks.length?segs[res.picks[0][1]][0]:null, seg:res.picks.length?res.picks[0][1]:null,
-      conf:res.picks.length?confLevel(res):"—", ms:res.ms||null, cmp};
+      conf:res.picks.length?confLevel(res):"—", alts:res.picks.slice(1).map(p=>segs[p[1]][0]),
+      ms:res.ms||null, cmp, point:point||null, pick, sent:false,
+      words:(data.words||[]).map(w=>[w.text, Math.round(w.confidence), w.bbox.x0, w.bbox.y0, w.bbox.x1, w.bbox.y1]),
+      big: OPTS.send ? jpeg(photo,1800,.8) : null};
     await store("readwrite", s=>s.put(rec));
     const all=await allScans();
     if(all.length>HIST_MAX) await store("readwrite", s=>{ for(const r of all.slice(HIST_MAX)) s.delete(r.id); });
     renderHistList();
+    syncScans();
   }catch(e){ console.warn("history", e); }
 }
+
+// Send saved scans to the review store; scans taken offline go when Wi-Fi is back.
+let syncing=false;
+async function syncScans(){
+  if(!OPTS.send || syncing || !navigator.onLine) return;
+  syncing=true;
+  try{
+    for(const r of (await allScans()).filter(r=>!r.sent)){
+      const {sent, ...body} = r;
+      body.img = r.big || r.img; delete body.big;
+      body.device = navigator.userAgent; body.tractate = TRACTATE;
+      const res = await fetch("api/scan", {method:"POST", headers:{"content-type":"application/json","x-scan-key":"gemara-pen-scans"}, body:JSON.stringify(body)});
+      if(!res.ok) break;
+      r.sent=true; r.big=null;
+      await store("readwrite", s=>s.put(r));
+    }
+  }catch(e){ console.warn("sync", e); }
+  finally{ syncing=false; renderHistList(); }
+}
+window.addEventListener("online", syncScans);
 
 const pct = (a,b)=> b ? Math.round(100*a/b) : 0;
 function cmpScore(c){ const real=c.exact+c.near+c.missed; return {real, read:pct(c.exact,real)}; }
@@ -683,11 +769,21 @@ async function renderHistList(){
   for(const r of all){
     const s=cmpScore(r.cmp), a=document.createElement("a"); a.className="hrow";
     a.innerHTML=`<img src="${r.img}" alt=""><div><div><b>${r.daf?TRACTATE+" "+esc(r.daf):"Not found"}</b> · ${esc(r.conf)}</div>
-      <div class="small muted">${new Date(r.id).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} · ${esc(r.how)}</div>
+      <div class="small muted">${new Date(r.id).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} · ${esc(r.how)}${OPTS.send?(r.sent?" · sent to Claude ✓":" · waiting to send"):""}</div>
       <div class="small">${r.daf?`OCR got <b>${s.read}%</b> of words exactly right (${r.cmp.exact} of ${s.real})`:`Read ${r.cmp.nOcr} words, no match`}</div></div>`;
     a.onclick=()=>openScan(r);
     el.appendChild(a);
   }
+}
+
+// SVG drawn over the picture in the picture's own pixel space
+function overlay(r){
+  if(!r.w || !r.words) return "";
+  const box=(b,cls)=>`<rect class="${cls}" x="${b[0]}" y="${b[1]}" width="${b[2]-b[0]}" height="${b[3]-b[1]}"/>`;
+  let g = r.words.filter(w=>matchKey(w[0])).map(w=>box(w.slice(2),"ob")).join("");
+  if(r.pick && r.pick.box) g += box(r.pick.box,"pb");
+  if(r.point){ const {x,y}=r.point, L=r.h*.05; g += `<path class="px" d="M${x-L} ${y}H${x+L}M${x} ${y-L}V${y+L}"/>`; }
+  return `<svg class="hov" viewBox="0 0 ${r.w} ${r.h}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
 }
 
 function openScan(r){
@@ -700,7 +796,10 @@ function openScan(r){
     return `<ruby class="cw ${k}">${esc(real)}<rt>${esc(o)}</rt></ruby>`;
   };
   $("histBody").innerHTML = `
-    <img class="himg" src="${r.img}" alt="Scanned picture">
+    ${r.seen?`<div class="chips" style="margin-bottom:8px"><span class="chip on" id="vPhoto">Your photo</span><span class="chip" id="vSeen">What the OCR saw (cleaned)</span></div>`:""}
+    <div class="hpic"><img class="himg" id="hImg" src="${r.img}" alt="Scanned picture">${overlay(r)}</div>
+    ${r.pick?`<div class="small" style="margin-top:6px">Red + = where you aimed · blue box = the word the scanner picked:
+      <b dir="rtl">${esc(r.pick.word||"none")}</b>${r.pick.ocr?` <span class="muted">(OCR read “${esc(r.pick.ocr)}”)</span>`:""}</div>`:`<div class="small muted" style="margin-top:6px">Blue boxes = every word the OCR found.</div>`}
     <div style="margin-top:10px"><b style="font-size:18px">${r.daf?"📍 "+TRACTATE+" "+esc(r.daf):"Couldn't find this spot"}</b>
       <span class="muted small"> · confidence ${esc(r.conf)}${r.ms?` · ${(r.ms/1000).toFixed(1)} s`:""} · ${new Date(r.id).toLocaleString()}</span></div>
     ${r.daf?`<div class="stats">
@@ -723,6 +822,10 @@ function openScan(r){
       <button id="histDel">Delete this scan</button>
     </div>`;
   $("hist").classList.add("open"); $("hist").scrollTop=0;
+  if(r.seen){
+    const view=seen=>{ $("hImg").src=seen?r.seen:r.img; $("vSeen").classList.toggle("on",seen); $("vPhoto").classList.toggle("on",!seen); };
+    $("vPhoto").onclick=()=>view(false); $("vSeen").onclick=()=>view(true);
+  }
   if(r.seg!=null) $("histGo").onclick=()=>{ $("hist").classList.remove("open"); lastHits=new Set(); $("where").textContent=`📍 ${TRACTATE} ${r.daf}`; $("conf").textContent="From a past scan"; $("alts").innerHTML=""; renderRange(Math.max(0,r.seg-2),Math.min(segs.length-1,r.seg+2),null); $("resultCard").scrollIntoView({behavior:"smooth"}); };
   $("histDel").onclick=async()=>{ try{ await store("readwrite", s=>s.delete(r.id)); }catch(e){} $("hist").classList.remove("open"); renderHistList(); };
 }
@@ -792,9 +895,9 @@ $("camCard").onclick=()=>{
   closeCam();
   lastOcr=r.data.text;
   lastScan={words:r.data.words||[], w:r.c.width, h:r.c.height, res:r.res};
-  $("photo").src=r.c.toDataURL("image/jpeg",.6); $("photo").style.display="block"; $("photoHint").style.display="block";
+  $("photo").src=(r.c.raw||r.c).toDataURL("image/jpeg",.6); $("photo").style.display="block"; $("photoHint").style.display="block";
   showResult(r.res);
-  saveScan(r.c, r.data, r.res, "Live");
+  saveScan(r.c, r.data, r.res, "Live", {x:r.c.width/2, y:r.c.height/2});
   if(r.p!=null) selectToken(r.p);
 };
 
@@ -818,10 +921,12 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v6";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v8";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
+  $("optSend").checked=OPTS.send;
+  $("optSend").onchange=e=>{ OPTS.send=e.target.checked; saveOpts(); renderHistList(); syncScans(); };
   $("optHist").onchange=e=>{ OPTS.hist=e.target.checked; saveOpts(); renderHistList(); };
   $("histClose").onclick=()=>$("hist").classList.remove("open");
   $("histClear").onclick=async()=>{ try{ await store("readwrite", s=>s.clear()); }catch(e){} renderHistList(); };
@@ -829,7 +934,7 @@ async function boot(){
   try{ await loadData(); }
   catch(e){ $("status").textContent="Couldn't load Berakhot data"; return; }
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
-  renderHistList();
+  renderHistList(); syncScans();
   const saved = +recall("gs.last");
   if(recall("gs.last")!=null && segs[saved]){ showDaf(segs[saved][0], "Where you left off"); lastLoc=saved; }
   if(!("serviceWorker" in navigator)){ offlineState(false, "This browser can't save the app for offline use."); return; }

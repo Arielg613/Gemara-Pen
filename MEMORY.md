@@ -182,6 +182,19 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   form above, grey missed, red junk) plus "% words exactly right". Settings switch, on.
   Use these to judge real-page OCR before changing the scanner.
 
+- 2026-11-05 — **Scans are sent to Claude.** Ariel wants Claude to see every scan so he
+  can just say what went wrong. The app POSTs each saved scan to `/api/scan`
+  (docs/scan/api/scan.js), which writes `scans/<date>/<id>.json` into the PRIVATE Vercel
+  Blob store `gemara-scans` (project gemara-scanner). Each file has the real photo, the
+  cleaned image the OCR read, raw OCR text, every OCR word with its box, where the red +
+  was, which word got picked, and the word-by-word comparison. Scans taken offline wait
+  and send when there's Wi-Fi. **To read them:** `cd ~/Gemara-Pen && vercel blob list
+  --prefix scans/` then `vercel blob get <pathname>` (repo root is linked to the project).
+- 2026-11-05 — **Big OCR fix:** real camera pictures have grain and shadows, and Tesseract
+  read almost nothing from them (0 words on 3 of 4 noisy test pages). Added a cleanup
+  step before OCR (median filter → local-light threshold → drop specks). Hard synthetic
+  pages: 3/7 → 7/7 found. Settings flag OPTS.clean (on).
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the

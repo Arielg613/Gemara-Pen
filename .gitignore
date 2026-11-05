@@ -11,3 +11,5 @@ real_dictionary.json
 unmatched.json
 .vercel
 .env*.local
+.env*
+node_modules

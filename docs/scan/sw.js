@@ -1,6 +1,6 @@
 // Offline cache for the Gemara Scanner. Bump CACHE when any file changes
 // (and CACHE_NAME in index.html with it).
-const CACHE = "gemara-scan-v6";
+const CACHE = "gemara-scan-v8";
 const FILES = [
   "./",
   "index.html",
@@ -30,6 +30,7 @@ self.addEventListener("activate", e => {
 // with no network falls back to the cached app, whatever URL it came in on.
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  if (new URL(e.request.url).pathname.includes("/api/")) return;
   e.respondWith((async () => {
     const hit = await caches.match(e.request, { ignoreSearch: true });
     if (hit) return hit;
