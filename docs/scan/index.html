@@ -189,7 +189,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     Tap a word to see its meaning.<br><br>
     <b>Point at a word:</b> in the camera, put the red + on a word. With <b>Live</b> on, the meaning appears on
     screen by itself as you move. Or press Capture and it opens straight to that word.<br><br>
-    <span class="badge ai">Meaning here</span> the phrase you tapped and what it means in this exact spot, written by AI and checked against Sefaria's English (so far only on Berakhot 46a).<br>
+    <span class="badge ai">Meaning here</span> the phrase you tapped and what it means in this exact spot, written by AI and checked against Sefaria's English (so far Berakhot 2a–7a and 46a).<br>
     <span class="badge ai">General meaning</span> everywhere else for now: one meaning per word for the whole tractate, so it can be wrong for a particular spot.<br>
     <span class="badge off">Official</span> Sefaria's translation of the line (William Davidson / Steinsaltz). <b>Bold</b> = literal translation, plain = explanation.<br><br>
     <b>Offline:</b> once the top corner says <b>✓ Ready offline</b>, everything works with Wi-Fi off.
@@ -940,7 +940,7 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v10";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v11";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;

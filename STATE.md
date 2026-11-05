@@ -95,7 +95,11 @@ lookup/*.json           nikud-free lookup indexes, same shape as dictionaries
 lookup/abbreviations.json  11,660 rashei tevot
 lookup/master.json      28,148 keys, all tractates merged
 docs/index.html         searchable web dictionary (GitHub Pages)
-build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app (+ abbreviations)
+build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app (+ abbreviations,
+                        + phrase meanings from phrases/<Tractate>.json)
+phrases/<Tractate>.json per-spot phrase meanings (Berakhot: 2a–7a, 46a)
+phrase_tasks.py         task sheets for writing phrase meanings; --check validates a part file
+merge_phrases.py        merges phrases/parts/*.json into phrases/<Tractate>.json
 docs/scan/              offline scanner test app (camera → OCR → find daf → tap word)
                         live at https://gemara-scanner.vercel.app — Vercel is connected
                         to this repo (root folder docs/scan): every push to main redeploys it; old copy at arielg613.github.io/Gemara-Pen/scan/

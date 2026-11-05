@@ -214,6 +214,12 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   phrase highlighted + its spot meaning ("Meaning here"); dafs without chunks fall back
   to the old gloss ("General meaning … not checked"). Next: do all of Berakhot this way.
 
+- 2026-11-05 — **Phrase meanings done for Berakhot 2a–7a (+46a).** Ariel chose to stop
+  at 7a for now. Made by 4 Claude helper agents from `phrase_tasks.py` task sheets
+  (`--check` validates word counts), merged with `merge_phrases.py`, sample-reviewed by
+  Claude. Every word on those dafs shows its phrase + spot meaning in the app. To do more
+  dafs later: same pipeline (parts go in phrases/parts/, merge, build_scan_data.py).
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
