@@ -34,10 +34,39 @@ ideas in flight.
   are for ideas, planning and small code changes.
 
 ## Ideas / brainstorm
-_(nothing yet)_
+- 2026-11-05 — **Vision, in Ariel's words:** an offline device (a pen, a box,
+  whatever) holding all of Gemara, Mishnayot and Shulchan Aruch, for people
+  learning in the beit midrash. You set your location with a knob (e.g. Shulchan
+  Aruch, Yoreh De'ah, siman 4), scan a word, and it shows that word's meaning
+  for that spot. Translations come from Sefaria, not AI. Working offline matters
+  most.
+- 2026-11-05 — **Gap to solve:** Sefaria translates whole passages, not single
+  words. Three ways to get a word-level meaning:
+  (a) a dictionary (Jastrow, public domain, offline) — accurate, but not tied
+      to the passage;
+  (b) the Sefaria English of the line you scanned, shown next to the word —
+      100% Sefaria, but not word-level;
+  (c) a per-word gloss lined up with Sefaria's English ahead of time (what this
+      repo does now, with Sefaria checking each gloss) — fits the passage, but
+      AI-assisted.
+  Leaning toward combining them: per-word gloss + Jastrow + the line's Sefaria
+  English one click away.
+- 2026-11-05 — **Idea: drop the knob with auto-location.** Scan a few words and
+  search the whole corpus offline to find where you are (tractate/daf, siman/se'if).
+  Keep the knob as a fallback when the match is ambiguous.
+- 2026-11-05 — **Prototype path:** offline phone app first (camera + OCR + lookup),
+  then a hardware pen/box once the data and lookup are proven. Storage is easy:
+  the whole corpus is well under 1 GB.
 
 ## Open questions
-_(nothing yet)_
+- Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
+  a non-commercial device. Selling one needs permission from Sefaria or the
+  translators.
+- English coverage: Bavli (Davidson/Steinsaltz) and Mishnah have full English.
+  Shulchan Aruch English on Sefaria is partial — check which sections exist.
+- OCR: printed Hebrew on a small camera, with nikud, Rashi script and tiny
+  fonts. This is the hardest technical part.
 
 ## Log — short notes on what each session did
+- 2026-11-05 (phone) — Brainstormed the overall device vision and saved it above.
 - 2026-11-05 (phone) — Created this file and pointed `CLAUDE.md` at it.
