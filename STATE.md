@@ -96,9 +96,6 @@ lookup/abbreviations.json  11,660 rashei tevot
 lookup/master.json      28,148 keys, all tractates merged
 docs/index.html         searchable web dictionary (GitHub Pages)
 build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app (+ abbreviations)
-build_jastrow_data.py   builds docs/scan/jastrow.json (Jastrow trimmed to Berakhot words;
-                        source is data/jastrow.json in commit 09baf13). Its candidates()
-                        must stay in step with docs/scan/jastrow.js
 docs/scan/              offline scanner test app (camera → OCR → find daf → tap word)
                         live at https://gemara-scanner.vercel.app — Vercel is connected
                         to this repo (root folder docs/scan): every push to main redeploys it; old copy at arielg613.github.io/Gemara-Pen/scan/

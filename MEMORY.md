@@ -165,8 +165,19 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   is shown only when its short meaning shares a word with Sefaria's literal (bold)
   English for that line; still wrong ~1 in 10, so it's OFF by default (Settings switch).
 
+- 2026-11-05 — **Personal use only, not for sale (Ariel's words).** So non-commercial
+  licensed sources (CC-BY-NC, e.g. most Sefaria translations) are fine to use. The
+  "selling needs permission" concern below only matters if that ever changes.
+
+- 2026-11-05 — **Jastrow dropped (Ariel: "forget about Jastrow").** Removed from the
+  scanner app. Don't bring it back unless he asks. The files are still in git history
+  (commit 52314dc: docs/scan/jastrow.js, jastrow.json, build_jastrow_data.py).
+- 2026-11-05 — **Personal use only, not for sale (Ariel's words).** So non-commercial
+  licensed sources (CC-BY-NC, e.g. most Sefaria translations) are fine to use. The
+  "selling needs permission" concern below only matters if that ever changes.
+
 ## Open questions
-- Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
+- Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
   translators.
 - English coverage: Bavli (Davidson/Steinsaltz) and Mishnah have full English.
