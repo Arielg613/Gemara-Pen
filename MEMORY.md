@@ -247,6 +247,14 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   green when the picture is sharp (sharpness test on the middle of the frame). In word mode,
   a word inside a checked phrase shows the phrase meaning (not the old wrong one-word gloss).
 
+- 2026-11-05 — **Device simulator (Ariel: "like I have the actual device in front of me").**
+  The app now opens into a simulator of the device: body, 4:3 small screen, status light,
+  buttons ◀ next · ● scan/select (hold = section English) · ▶ back · ☰ menu. Everything
+  goes through the buttons: home → ● → scanner (viewfinder on the small screen, laser line +
+  light red → green when sharp) → ● capture → reader (phrase + meaning + context strip).
+  Menu: phrase/word stepping, go to a daf, text size, scan, exit to "scanner tools" (the old
+  page). Keyboard on a computer: ← → space M. Shape of the device left for later.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
