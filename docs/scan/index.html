@@ -82,9 +82,9 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 #photo{max-width:100%;max-height:340px;border-radius:10px;display:none;margin-top:10px;cursor:crosshair}
 #photoHint{display:none}
 #sAbbr{direction:rtl;text-align:right;font-size:17px;margin:2px 0 6px;display:none}
-/* the "laser": a short red line just under the word being picked (the word sits at the centre) */
-#cross{position:absolute;left:50%;top:50%;width:72px;height:4px;margin:16px 0 0 -36px;border-radius:2px;
-  background:#ff2a1f;box-shadow:0 0 6px 2px rgba(255,42,31,.75)}
+/* the "laser": a red dot on the word being picked (the scanner reads the words around it) */
+#cross{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
+  background:#ff2a1f;box-shadow:0 0 8px 3px rgba(255,42,31,.7)}
 #camCard{position:absolute;left:12px;right:12px;top:calc(50px + env(safe-area-inset-top));margin:0 auto;max-width:560px;
   background:rgba(255,255,255,.95);color:#1d1d1f;border-radius:14px;padding:10px 14px;display:none;cursor:pointer}
 #camCard.on{display:block}
@@ -119,7 +119,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 .dhint{font:13px -apple-system,sans-serif;color:#8d94a3;margin-top:6px}
 .dcam{padding:0}
 #dFinder{width:100%;height:100%;display:block}
-#dLaser{position:absolute;left:50%;top:50%;width:60px;height:3px;margin:12px 0 0 -30px;border-radius:2px;background:#ff2a1f;box-shadow:0 0 6px 2px rgba(255,42,31,.75)}
+#dLaser{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#ff2a1f;box-shadow:0 0 8px 3px rgba(255,42,31,.7)}
 #dLaser.ready{background:#21d07a;box-shadow:0 0 6px 2px rgba(33,208,122,.8)}
 .dcammsg{position:absolute;bottom:0;left:0;right:0;font:12px -apple-system,sans-serif;background:rgba(0,0,0,.6);padding:4px}
 .dmenu{justify-content:flex-start;align-items:stretch;text-align:left;font:15px -apple-system,sans-serif;padding:8px 10px}
@@ -151,6 +151,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 .hov .ob{fill:none;stroke:#2f7de1;stroke-width:2;opacity:.45}
 .hov .pb{fill:rgba(47,125,225,.18);stroke:#1857c4;stroke-width:5}
 .hov .px{stroke:#ff3b30;stroke-width:5;fill:none}
+.hov .pxd{fill:#ff2a1f;stroke:#fff;stroke-width:2}
 .stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .stats div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;min-width:84px}
 .stats b{display:block;font-size:22px}
@@ -238,7 +239,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     <b>How it works:</b> photograph the main Gemara text (not Rashi/Tosafot). The scanner reads it roughly,
     then matches it against the full Berakhot text stored on this device to find exactly where you are.
     Tap a word to see its meaning.<br><br>
-    <b>Point at a word:</b> in the camera, put the red laser line just under a word. With <b>Live</b> on, the meaning appears on
+    <b>Point at a word:</b> in the camera, put the red laser dot on a word. With <b>Live</b> on, the meaning appears on
     screen by itself as you move. Or press Capture and it opens straight to that word.<br><br>
     <span class="badge ai">Meaning here</span> the phrase you tapped and what it means in this exact spot, written by AI and checked against Sefaria's English (so far Berakhot 2a–7a and 46a).<br>
     <span class="badge ai">General meaning</span> everywhere else for now: one meaning per word for the whole tractate, so it can be wrong for a particular spot.<br>
@@ -298,7 +299,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 <div id="cam">
   <video id="video" playsinline muted autoplay></video>
   <div id="guide"><div id="cross"></div></div>
-  <div id="camHint">Put the red line just under a word · wait for it to turn green · press Capture</div>
+  <div id="camHint">Put the red dot on a word · wait for it to turn green · press Capture</div>
   <div id="camCard"></div>
   <div id="camBar">
     <button id="camCancel">Close</button>
@@ -820,7 +821,7 @@ function jpeg(canvas, maxW, q){
   return t.toDataURL("image/jpeg",q);
 }
 
-// point = the word just above the red laser line (canvas pixels), if this scan used it
+// point = the word under the red laser dot (canvas pixels), if this scan used it
 async function saveScan(canvas, data, res, how, point){
   if(!OPTS.hist && !OPTS.send) return;
   try{
@@ -890,7 +891,7 @@ function overlay(r){
   const box=(b,cls)=>`<rect class="${cls}" x="${b[0]}" y="${b[1]}" width="${b[2]-b[0]}" height="${b[3]-b[1]}"/>`;
   let g = r.words.filter(w=>matchKey(w[0])).map(w=>box(w.slice(2),"ob")).join("");
   if(r.pick && r.pick.box) g += box(r.pick.box,"pb");
-  if(r.point){ const {x,y}=r.point, L=r.w*.04, dy=r.h*.035; g += `<path class="px" d="M${x-L} ${y+dy}H${x+L}"/>`; }
+  if(r.point){ const {x,y}=r.point; g += `<circle class="pxd" cx="${x}" cy="${y}" r="${Math.max(6,r.w*.008)}"/>`; }
   return `<svg class="hov" viewBox="0 0 ${r.w} ${r.h}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
 }
 
@@ -906,7 +907,7 @@ function openScan(r){
   $("histBody").innerHTML = `
     ${r.seen?`<div class="chips" style="margin-bottom:8px"><span class="chip on" id="vPhoto">Your photo</span><span class="chip" id="vSeen">What the OCR saw (cleaned)</span></div>`:""}
     <div class="hpic"><img class="himg" id="hImg" src="${r.img}" alt="Scanned picture">${overlay(r)}</div>
-    ${r.pick?`<div class="small" style="margin-top:6px">Red line = where you aimed · blue box = the word the scanner picked:
+    ${r.pick?`<div class="small" style="margin-top:6px">Red dot = where you aimed · blue box = the word the scanner picked:
       <b dir="rtl">${esc(r.pick.word||"none")}</b>${r.pick.ocr?` <span class="muted">(OCR read “${esc(r.pick.ocr)}”)</span>`:""}</div>`:`<div class="small muted" style="margin-top:6px">Blue boxes = every word the OCR found.</div>`}
     <div style="margin-top:10px"><b style="font-size:18px">${r.daf?"📍 "+TRACTATE+" "+esc(r.daf):"Couldn't find this spot"}</b>
       <span class="muted small"> · confidence ${esc(r.conf)}${r.ms?` · ${(r.ms/1000).toFixed(1)} s`:""} · ${new Date(r.id).toLocaleString()}</span></div>
@@ -964,7 +965,7 @@ function camCard(r){
   const el=$("camCard");
   if(!r){ el.innerHTML=`<div class="cm">Looking… hold the iPad steady over the main text</div>`; return; }
   const where=`📍 ${TRACTATE} ${segs[r.seg][0]}`;
-  if(r.p==null){ el.innerHTML=`<div class="cm">${where} · move the red line under a word</div>`; return; }
+  if(r.p==null){ el.innerHTML=`<div class="cm">${where} · move the red dot onto a word</div>`; return; }
   const m=meaningAt(r.p, r.word);
   const ab=OPTS.abbr && abbrFor(r.word);
   el.innerHTML=`<div class="cm">${where} · tap for details</div><div class="cw">${esc(m.text)}</div>`+
@@ -1131,7 +1132,7 @@ function devMenuSelect(){
   devMenuItems()[DEV.sel].f();
 }
 
-// ── scanner: viewfinder on the small screen, laser line red until sharp ──
+// ── scanner: viewfinder on the small screen, laser dot red until sharp ──
 async function devStartCam(){
   devLed("red"); devEl("dCamMsg").textContent="Starting camera…";
   if(!DEV.stream){
@@ -1232,7 +1233,7 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("keyup",e=>{ if(e.key===" " && devKeyDown){ devKeyDown=false; devMidUp(); } });
 $("btnDev").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]"); openDevice(sel?+sel.dataset.p:null); };
 
-// ── Focus light: the laser line is red until the picture is sharp, then green ──
+// ── Focus light: the laser dot is red until the picture is sharp, then green ──
 // Sharpness = how much the brightness changes between neighbouring pixels in
 // the middle of the frame (blur smooths those changes away).
 let focusT=null, sharpBest=0, sharpHist=[];
@@ -1268,7 +1269,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v16";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v17";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;

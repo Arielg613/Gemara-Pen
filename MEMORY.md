@@ -269,6 +269,12 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   page isn't in the test yet" when under 30% of the words read match (tested: 30a rejected,
   4b/6a found). Widen RANGE as more dafs get phrase meanings.
 
+- 2026-11-05 — **Laser is a DOT, on the word (supersedes the "line under the word" idea).**
+  Ariel: a dot makes more sense. Covering the letters doesn't matter: the scanner finds the
+  place from the surrounding words and takes the exact word from the stored text. A dot is
+  also the simplest hardware (cheap eye-safe laser-pointer module). App shows a red dot
+  (green when sharp) in the camera, the device viewfinder and scan details.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
