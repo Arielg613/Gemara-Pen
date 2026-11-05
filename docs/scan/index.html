@@ -175,7 +175,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 <header>
   <div>
     <h1>Gemara Scanner</h1>
-    <div class="sub">Test build · Berakhot only</div>
+    <div class="sub">Test build · Berakhot 2a–7a</div>
   </div>
   <div id="status">Loading…</div>
 </header>
@@ -226,6 +226,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 
   <div class="card">
     <b>Settings</b>
+    <label class="set"><input type="checkbox" id="optRange"> Only Berakhot 2a–7a (the dafs with phrase meanings) — reloads the app</label>
     <label class="set"><input type="checkbox" id="optDev"> Open the device simulator when the app starts</label>
     <label class="set"><input type="checkbox" id="optPen"> After a camera scan here, open the result in the device</label>
     <label class="set"><input type="checkbox" id="optHist"> Save recent scans (photo + what OCR read)</label>
@@ -265,7 +266,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
       <div class="dtop"><span class="dname">Gemara Scanner</span><span id="dLed" class="dled"></span></div>
       <div class="dscreen" id="dScreen">
         <div class="dstat"><span id="dLoc">Ready</span><span>offline ✓ ▮▮▮</span></div>
-        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan</div></div>
+        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan · Berakhot 2a–7a</div></div>
         <div id="dView" class="dpane">
           <div id="dHe" class="dhe"></div>
           <div id="dEn" class="den"></div>
@@ -328,14 +329,22 @@ let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new
 let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
 
 // ── Settings (per device) ─────────────────────────────────────────────────
-const OPTS = {abbr:true, hist:true, send:true, pen:true, devStart:true};
+const OPTS = {abbr:true, hist:true, send:true, pen:true, devStart:true, range:true};
 try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
 const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
 const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 const recall = k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
 
+// Test range: only the dafs that have checked phrase meanings so far.
+const RANGE = ["2a","2b","3a","3b","4a","4b","5a","5b","6a","6b","7a"];
 async function loadData(){
   D = await (await fetch(TRACTATE + ".json")).json();
+  if(OPTS.range){
+    // keep only RANGE; phrase chunks are keyed by segment number, so renumber them
+    const keep=[], chunks={};
+    D.segs.forEach((s,i)=>{ if(RANGE.includes(s[0])){ if(D.chunks && D.chunks[i]) chunks[keep.length]=D.chunks[i]; keep.push(s); } });
+    D.segs=keep; D.chunks=chunks;
+  }
   segs = D.segs;
   segs.forEach((s,i)=>{
     if(!dafs.length || dafs[dafs.length-1] !== s[0]) dafs.push(s[0]);
@@ -1181,6 +1190,9 @@ async function devCapture(){
     saveScan(c, data, res, "Device · "+DEV.view, point);
     const nWords=(data.words||[]).filter(w=>matchKey(w.text)).length, nLines=(data.lines||[]).filter(l=>matchKey(l.text||"")).length;
     DEV.saw=`saw ${nLines} line${nLines===1?"":"s"} · ${nWords} words`;
+    // few of the words read match the chosen spot → this page isn't one we have
+    const matchShare = res.nOcr ? res.hitWords.size/res.nOcr : 0;
+    if(res.picks.length && OPTS.range && matchShare<.3 && nWords>=6){ devEl("dHome").innerHTML=`<div class="dbig">This page isn't in the test yet</div><div class="dhint">Only Berakhot 2a–7a for now · ${DEV.saw}</div>`; devShow("home"); devLed("red"); return; }
     if(!res.picks.length || confLevel(res)==="Low" && nWords<6){ devEl("dHome").innerHTML=`<div class="dbig">Couldn't find this spot</div><div class="dhint">${DEV.saw} — not enough to be sure. Hold steady and press ● again</div>`; devShow("home"); devLed("red"); return; }
     const w=wordAt(data.words||[], point.x, point.y);
     let p = w ? alignWord(data.words, w, res) : null;
@@ -1256,10 +1268,11 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v15";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v16";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
+  $("optRange").checked=OPTS.range; $("optRange").onchange=e=>{ OPTS.range=e.target.checked; saveOpts(); location.reload(); };
   $("optDev").checked=OPTS.devStart; $("optDev").onchange=e=>{ OPTS.devStart=e.target.checked; saveOpts(); };
   $("optPen").checked=OPTS.pen; $("optPen").onchange=e=>{ OPTS.pen=e.target.checked; saveOpts(); };
   $("optSend").checked=OPTS.send;

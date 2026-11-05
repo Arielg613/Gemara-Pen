@@ -264,6 +264,11 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   2 lines×3 words 89% right spot (perfect reading); ~2–7 points lower with 20% misreads.
   Real OCR on a tiny crop is likely worse than that — needs real-page checks.
 
+- 2026-11-05 — **App limited to Berakhot 2a–7a** (Ariel: only the dafs with phrase meanings).
+  RANGE in index.html; Settings switch "Only Berakhot 2a–7a" (on). The device says "This
+  page isn't in the test yet" when under 30% of the words read match (tested: 30a rejected,
+  4b/6a found). Widen RANGE as more dafs get phrase meanings.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
