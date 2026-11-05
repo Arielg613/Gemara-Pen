@@ -239,6 +239,14 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
 - 2026-11-05 — **Jumping between dafs:** no menu needed. Turn the page, point, press scan;
   it finds any spot on its own. The arrows only step phrase by phrase.
 
+- 2026-11-05 — **Focus light + Merkava-style reading (Ariel's idea).** Aim with the laser line:
+  RED while blurry, GREEN when sharp and ready → press to scan. After that the device is a
+  little reader like Merkava: ◀ ▶ step phrase by phrase, a switch for word by word, hold
+  middle = section in English, press middle = scan again. Built into the web app as the
+  "Pen reader" (opens after a camera scan; Settings switch, on) and the camera's line turns
+  green when the picture is sharp (sharpness test on the middle of the frame). In word mode,
+  a word inside a checked phrase shows the phrase meaning (not the old wrong one-word gloss).
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
