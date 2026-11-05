@@ -188,8 +188,10 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   Blob store `gemara-scans` (project gemara-scanner). Each file has the real photo, the
   cleaned image the OCR read, raw OCR text, every OCR word with its box, where the red +
   was, which word got picked, and the word-by-word comparison. Scans taken offline wait
-  and send when there's Wi-Fi. **To read them:** `cd ~/Gemara-Pen && vercel blob list
-  --prefix scans/` then `vercel blob get <pathname>` (repo root is linked to the project).
+  and send when there's Wi-Fi. **To read them:** `cd ~/Gemara-Pen && T=$(grep ^BLOB_READ_WRITE_TOKEN .env.local
+  | cut -d= -f2- | tr -d '"')` then `vercel blob list --rw-token "$T"` and
+  `vercel blob get <pathname> --rw-token "$T"` (run `vercel env pull` first if .env.local
+  is missing; repo root is linked to the project). Endpoint is `api/scan.js` (no clean URLs).
 - 2026-11-05 — **Big OCR fix:** real camera pictures have grain and shadows, and Tesseract
   read almost nothing from them (0 words on 3 of 4 noisy test pages). Added a cleanup
   step before OCR (median filter → local-light threshold → drop specks). Hard synthetic

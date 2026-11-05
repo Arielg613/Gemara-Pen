@@ -747,7 +747,7 @@ async function syncScans(){
       const {sent, ...body} = r;
       body.img = r.big || r.img; delete body.big;
       body.device = navigator.userAgent; body.tractate = TRACTATE;
-      const res = await fetch("api/scan", {method:"POST", headers:{"content-type":"application/json","x-scan-key":"gemara-pen-scans"}, body:JSON.stringify(body)});
+      const res = await fetch("api/scan.js", {method:"POST", headers:{"content-type":"application/json","x-scan-key":"gemara-pen-scans"}, body:JSON.stringify(body)});
       if(!res.ok) break;
       r.sent=true; r.big=null;
       await store("readwrite", s=>s.put(r));
@@ -921,7 +921,7 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v8";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v9";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
