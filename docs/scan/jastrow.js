@@ -191,7 +191,8 @@
     return { head: row[0], def: def || gloss, gloss: gloss, via: via, key: key };
   }
 
-  function lookup(word) {
+  function lookup(word, max) {
+    var MAX_RESULTS = max || 3;
     if (!data) return [];
     var results = [];
     var raw = String(word || "").trim();
@@ -246,6 +247,45 @@
     return results.slice(0, MAX_RESULTS);
   }
 
+  // Jastrow alone often picks the wrong root or the wrong sense (מְצַלֵּי →
+  // "to roast"). Only trust an entry whose meaning shares a content word with
+  // the official English of the line it came from.
+  var STOP = {};
+  ("a an the of to in on at by for from with and or but not no is are was were be been it its this that these " +
+   "those he she they we you i his her their our your him them as so if then than there here what which who whom " +
+   "one also any all some do does did has have had will would shall should may might can could must let us me my " +
+   "into out up down over under about such very more most other same just only even like each upon " +
+   "name names several person persons place see cmp esp etc said says say speak word thing things make made " +
+   "come came go went give gave take took know way who whom well too said yes " +
+   "title scholars scholar tannaim amoraim several esp filled nothing").split(" ")
+    .forEach(function (w) { STOP[w] = true; });
+  function stems(text) {
+    var out = {};
+    String(text || "").toLowerCase().replace(/<[^>]+>/g, " ").split(/[^a-z]+/).forEach(function (w) {
+      if (w.length < 3 || STOP[w]) return;
+      w = w.replace(/(ings|ing|ers|er|ed|es|s)$/, "");
+      if (w.length >= 3) out[w] = true;
+    });
+    return out;
+  }
+  function verified(word, english) {
+    // bold = the literal translation; the plain text around it is commentary
+    // and matches by accident far too often
+    var bold = (String(english || "").match(/<b>[\s\S]*?<\/b>/g) || []).join(" ");
+    var eng = stems(bold || english), best = null;
+    var rows = lookup(word, 15);
+    for (var i = 0; i < rows.length; i++) {
+      // the short meaning only — long definitions match the English by accident
+      var m = stems(rows[i].gloss || rows[i].def.slice(0, 60)), hit = [];
+      for (var k in m) if (eng[k]) hit.push(k);
+      // a guessed ending or a different person's name needs more than one word in common
+      var loose = /added|see /.test(rows[i].via) || /name of|title of/.test(rows[i].def);
+      if (hit.length < (loose ? 2 : 1)) continue;
+      if (!best || hit.length > best.hits) best = { entry: rows[i], hits: hit.length };
+    }
+    return best ? best.entry : null;
+  }
+
   function load(url) {
     if (data) return Promise.resolve(api);
     if (loading) return loading;
@@ -266,6 +306,7 @@
   var api = {
     load: load,
     lookup: lookup,
+    verified: verified,
     isLoaded: function () { return !!data; },
     // for tests / tooling
     _setData: setData,

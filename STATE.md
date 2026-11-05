@@ -100,8 +100,8 @@ build_jastrow_data.py   builds docs/scan/jastrow.json (Jastrow trimmed to Berakh
                         source is data/jastrow.json in commit 09baf13). Its candidates()
                         must stay in step with docs/scan/jastrow.js
 docs/scan/              offline scanner test app (camera → OCR → find daf → tap word)
-                        live at https://gemara-scanner.vercel.app (deploy: cd docs/scan
-                        && vercel deploy --prod); old copy at arielg613.github.io/Gemara-Pen/scan/
+                        live at https://gemara-scanner.vercel.app — Vercel is connected
+                        to this repo (root folder docs/scan): every push to main redeploys it; old copy at arielg613.github.io/Gemara-Pen/scan/
                         bump CACHE in docs/scan/sw.js AND CACHE_NAME in index.html whenever a file changes
 ```
 

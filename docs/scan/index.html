@@ -150,7 +150,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 
   <div class="card">
     <b>Settings</b>
-    <label class="set"><input type="checkbox" id="optJas"> Show Jastrow dictionary entries</label>
+    <label class="set"><input type="checkbox" id="optJas"> Show Jastrow dictionary (only when it agrees with Sefaria)</label>
     <label class="set"><input type="checkbox" id="optAbbr"> Spell out abbreviations (גמ׳ → גמרא)</label>
   </div>
 
@@ -175,7 +175,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
   <div><span class="badge ai">AI gloss</span></div>
   <div class="gloss" id="sGloss"></div>
   <div class="small muted" id="sWhere"></div>
-  <div id="sJasBox" style="margin-top:12px;display:none"><span class="badge dict">Dictionary · Jastrow (public domain)</span><div id="sJas"></div></div>
+  <div id="sJasBox" style="margin-top:12px;display:none"><span class="badge dict">Dictionary · Jastrow</span> <span class="small muted">shown only when it agrees with Sefaria’s English</span><div id="sJas"></div></div>
   <div style="margin-top:12px"><span class="badge off">Official · Sefaria (William Davidson / Steinsaltz)</span></div>
   <div class="en" id="sEn"></div>
 </div>
@@ -215,7 +215,7 @@ let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new
 let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
 
 // ── Settings (per device) ─────────────────────────────────────────────────
-const OPTS = {jas:true, abbr:true};
+const OPTS = {jas:false, abbr:true};   // Jastrow off: still wrong about 1 time in 10
 try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
 const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
 const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -426,11 +426,10 @@ function showWord(span, word, segIdx){
   const ab = OPTS.abbr && abbrFor(word);
   $("sAbbr").style.display = ab ? "block" : "none";
   if(ab) $("sAbbr").textContent = "ראשי תיבות: " + ab;
-  const jas = OPTS.jas && window.Jastrow && Jastrow.ready ? Jastrow.lookup(word) : [];
-  $("sJasBox").style.display = jas.length ? "" : "none";
-  // the first match is usually right; the others are weaker guesses
-  const jrow = e=>`<div class="jas"><span class="hd">${esc(e.head)}</span>${esc(e.gloss||e.def)}${e.via?` <span class="via">(${esc(e.via)})</span>`:""}</div>`;
-  $("sJas").innerHTML = jas.length ? jrow(jas[0]) + (jas.length>1 ? `<details><summary>Other possible entries</summary>${jas.slice(1).map(jrow).join("")}</details>` : "") : "";
+  // Jastrow only when its meaning agrees with Sefaria's literal English here
+  const jas = OPTS.jas && window.Jastrow && Jastrow.ready ? Jastrow.verified(word, segs[segIdx][2]) : null;
+  $("sJasBox").style.display = jas ? "" : "none";
+  $("sJas").innerHTML = jas ? `<div class="jas"><span class="hd">${esc(jas.head)}</span>${esc(jas.gloss||jas.def)}</div>` : "";
   $("sheet").classList.add("open");
   lastLoc = segIdx; remember("gs.last", segIdx);
 }
@@ -671,7 +670,7 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v3";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v4";   // keep in step with sw.js
 const OFFLINE_FILES = 12;              // length of FILES in sw.js
 async function boot(){
   $("optJas").checked=OPTS.jas; $("optAbbr").checked=OPTS.abbr;

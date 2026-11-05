@@ -153,13 +153,17 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   context (בערבין → "mix", not "evening"). The AI gloss stays the main answer.
 
 - 2026-11-05 — **Scanner now lives on Vercel: https://gemara-scanner.vercel.app**
-  (Ariel asked; Vercel project `gemara-scanner`, deployed from `docs/scan` with
-  `vercel deploy --prod`). GitHub Pages copy still exists but Vercel is the one to use.
+  (Ariel asked; Vercel project `gemara-scanner`, connected to this GitHub repo with
+  root folder `docs/scan`, so every push to main redeploys it). GitHub Pages copy still exists but Vercel is the one to use.
   Ariel found "Add to Home Screen" didn't work offline. Fixed: a banner shows until
   every file is saved ("✓ Ready offline"), any page load offline falls back to the
   cached app, storage marked persistent, app icon added. On iPhone/iPad the Home
   Screen icon keeps its OWN copy, so open it once with Wi-Fi and wait for "✓ Ready
   offline". Tested: with the network cut, reload + scan + word lookup all work.
+
+- 2026-11-05 — **Jastrow accuracy:** Ariel said Jastrow isn't accurate. Now an entry
+  is shown only when its short meaning shares a word with Sefaria's literal (bold)
+  English for that line; still wrong ~1 in 10, so it's OFF by default (Settings switch).
 
 ## Open questions
 - Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
