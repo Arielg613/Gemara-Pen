@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gemara Scanner</title>
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Gemara Scanner">
 <meta name="theme-color" content="#1f3a5f">
@@ -112,6 +113,10 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 </header>
 
 <main>
+  <div class="card" id="offline" style="display:none;border-color:var(--ai);background:var(--ai-bg)">
+    <b>Not ready for offline yet.</b> <span id="offlineMsg"></span>
+  </div>
+
   <div class="card">
     <div class="row">
       <button class="primary" id="btnCam">📷 Scan with camera</button>
@@ -157,7 +162,9 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     screen by itself as you move. Or press Capture and it opens straight to that word.<br><br>
     <span class="badge ai">AI gloss</span> one-word meaning written by AI, using Sefaria's English as a guide (Berakhot: one meaning per word form for the whole tractate, so it can miss the sense in a particular spot).<br>
     <span class="badge off">Official</span> Sefaria's translation of the line (William Davidson / Steinsaltz). <b>Bold</b> = literal translation, plain = explanation.<br><br>
-    After the first load, everything works offline. On iPad: Share → Add to Home Screen.
+    <b>Offline:</b> once the top corner says <b>✓ Ready offline</b>, everything works with Wi-Fi off.
+    On iPhone/iPad: Share → Add to Home Screen, then <b>open the Home Screen icon once with Wi-Fi on</b> and wait
+    for “✓ Ready offline” — the Home Screen app keeps its own separate copy from Safari.
   </div>
 </main>
 
@@ -664,7 +671,8 @@ $("camShot").onclick=async()=>{
   await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v2";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v3";   // keep in step with sw.js
+const OFFLINE_FILES = 12;              // length of FILES in sw.js
 async function boot(){
   $("optJas").checked=OPTS.jas; $("optAbbr").checked=OPTS.abbr;
   $("optJas").onchange=e=>{ OPTS.jas=e.target.checked; saveOpts(); if(OPTS.jas) loadJastrow(); };
@@ -675,18 +683,25 @@ async function boot(){
   if(OPTS.jas) loadJastrow();
   const saved = +recall("gs.last");
   if(recall("gs.last")!=null && segs[saved]){ showDaf(segs[saved][0], "Where you left off"); lastLoc=saved; }
-  if("serviceWorker" in navigator){
-    try{
-      await navigator.serviceWorker.register("sw.js");
-      await navigator.serviceWorker.ready;
-      const check = async()=>{
-        const ok = await caches.has(CACHE_NAME) && (await (await caches.open(CACHE_NAME)).keys()).length >= 10;
-        $("status").textContent = (ok ? "✓ Works offline · " : "Saving for offline… · ") + `${TRACTATE}, ${dafs.length} dafs`;
-        if(!ok) setTimeout(check, 2000);
-      };
-      check();
-    }catch(e){ console.warn(e); }
-  }
+  if(!("serviceWorker" in navigator)){ offlineState(false, "This browser can't save the app for offline use."); return; }
+  try{
+    if(navigator.storage && navigator.storage.persist) navigator.storage.persist();   // ask the OS not to clear it
+    await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    const check = async()=>{
+      const n = await caches.has(CACHE_NAME) ? (await (await caches.open(CACHE_NAME)).keys()).length : 0;
+      const ok = n >= OFFLINE_FILES;
+      offlineState(ok, ok ? "" : `Downloading for offline use… ${Math.min(n,OFFLINE_FILES)} of ${OFFLINE_FILES} files. Keep Wi-Fi on until this says ready.`);
+      if(!ok) setTimeout(check, 1500);
+    };
+    check();
+  }catch(e){ console.warn(e); offlineState(false, "Couldn't save for offline: " + e.message); }
+}
+function offlineState(ok, msg){
+  $("status").textContent = (ok ? "✓ Ready offline · " : "Not offline yet · ") + `${TRACTATE}, ${dafs.length} dafs`;
+  $("status").style.color = ok ? "var(--official)" : "var(--ai)";
+  $("offline").style.display = ok ? "none" : "";
+  $("offlineMsg").textContent = msg;
 }
 let jasP=null;
 function loadJastrow(){

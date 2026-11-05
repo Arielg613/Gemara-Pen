@@ -1,9 +1,11 @@
-// Offline cache for the Gemara Scanner. Bump CACHE when any file changes.
-const CACHE = "gemara-scan-v2";
+// Offline cache for the Gemara Scanner. Bump CACHE when any file changes
+// (and CACHE_NAME in index.html with it).
+const CACHE = "gemara-scan-v3";
 const FILES = [
   "./",
   "index.html",
   "manifest.json",
+  "icon.png",
   "Berakhot.json",
   "jastrow.js",
   "jastrow.json",
@@ -26,16 +28,26 @@ self.addEventListener("activate", e => {
   );
 });
 
-// Cache first, then network (and remember what we fetched).
+// Cache first, then network (and remember what we fetched). Any page load
+// with no network falls back to the cached app, whatever URL it came in on.
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
-  e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => {
+  e.respondWith((async () => {
+    const hit = await caches.match(e.request, { ignoreSearch: true });
+    if (hit) return hit;
+    try {
+      const res = await fetch(e.request);
       if (res.ok && new URL(e.request.url).origin === location.origin) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
       }
       return res;
-    }))
-  );
+    } catch (err) {
+      if (e.request.mode === "navigate") {
+        const app = await caches.match("index.html");
+        if (app) return app;
+      }
+      throw err;
+    }
+  })());
 });
