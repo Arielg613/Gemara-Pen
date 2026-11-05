@@ -95,7 +95,10 @@ lookup/*.json           nikud-free lookup indexes, same shape as dictionaries
 lookup/abbreviations.json  11,660 rashei tevot
 lookup/master.json      28,148 keys, all tractates merged
 docs/index.html         searchable web dictionary (GitHub Pages)
-build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app
+build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app (+ abbreviations)
+build_jastrow_data.py   builds docs/scan/jastrow.json (Jastrow trimmed to Berakhot words;
+                        source is data/jastrow.json in commit 09baf13). Its candidates()
+                        must stay in step with docs/scan/jastrow.js
 docs/scan/              offline scanner test app (camera → OCR → find daf → tap word)
                         live at arielg613.github.io/gemara-pen/scan/
                         bump CACHE in docs/scan/sw.js whenever a file there changes

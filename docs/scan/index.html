@@ -78,7 +78,26 @@ input[type=search]{flex:1;min-width:180px;direction:rtl}
 @keyframes s{to{transform:rotate(360deg)}}
 details summary{cursor:pointer;color:var(--muted);font-size:14px}
 pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;background:var(--bg);padding:8px;border-radius:8px}
-#photo{max-width:100%;max-height:220px;border-radius:10px;display:none;margin-top:10px}
+#photo{max-width:100%;max-height:340px;border-radius:10px;display:none;margin-top:10px;cursor:crosshair}
+#photoHint{display:none}
+.badge.dict{color:var(--accent);background:var(--sel)}
+.jas{margin-top:6px;font-size:15px}
+.jas .hd{direction:rtl;font-family:"Times New Roman",serif;font-size:19px;font-weight:600;margin-left:6px}
+.jas .via{color:var(--muted);font-size:12px}
+#sAbbr{direction:rtl;text-align:right;font-size:17px;margin:2px 0 6px;display:none}
+#cross{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px}
+#cross:before,#cross:after{content:"";position:absolute;background:#ff3b30;box-shadow:0 0 2px #000}
+#cross:before{left:22px;top:0;width:2px;height:46px}
+#cross:after{top:22px;left:0;height:2px;width:46px}
+#camCard{position:absolute;left:12px;right:12px;top:calc(50px + env(safe-area-inset-top));margin:0 auto;max-width:560px;
+  background:rgba(255,255,255,.95);color:#1d1d1f;border-radius:14px;padding:10px 14px;display:none;cursor:pointer}
+#camCard.on{display:block}
+#camCard .cw{direction:rtl;font-family:"Times New Roman",serif;font-size:28px;font-weight:600}
+#camCard .cg{font-size:19px;font-weight:650}
+#camCard .cm{font-size:13px;color:#6b6b70}
+#camLive.on{background:#1e7a46;color:#fff;border-color:#1e7a46}
+.set{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:15px}
+.set input{width:22px;height:22px}
 .hits a{display:block;padding:8px 0;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none;cursor:pointer}
 .hits .snip{direction:rtl;text-align:right;font-family:"Times New Roman",serif;font-size:18px}
 </style>
@@ -105,6 +124,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     </div>
     <div id="busy" class="small muted" style="margin-top:12px"><div class="spin"></div><span id="busyMsg">Reading…</span></div>
     <img id="photo" alt="Last scan">
+    <div id="photoHint" class="small muted">Tap a word in the picture to look it up.</div>
   </div>
 
   <div class="card" id="resultCard" style="display:none">
@@ -114,17 +134,27 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     <div class="small muted" style="margin-top:8px">Tap any word. Highlighted words are the ones the camera read.</div>
     <div class="text" id="text" style="margin-top:6px"></div>
     <div class="row" style="margin-top:10px">
+      <button id="btnPrev">‹ Previous daf</button>
       <button id="btnMore">Show whole daf</button>
+      <button id="btnNext">Next daf ›</button>
     </div>
     <details style="margin-top:10px"><summary>What the camera read (for testing)</summary><pre id="ocrRaw"></pre></details>
   </div>
 
   <div class="card hits" id="hitsCard" style="display:none"></div>
 
+  <div class="card">
+    <b>Settings</b>
+    <label class="set"><input type="checkbox" id="optJas"> Show Jastrow dictionary entries</label>
+    <label class="set"><input type="checkbox" id="optAbbr"> Spell out abbreviations (גמ׳ → גמרא)</label>
+  </div>
+
   <div class="card small muted">
     <b>How it works:</b> photograph the main Gemara text (not Rashi/Tosafot). The scanner reads it roughly,
     then matches it against the full Berakhot text stored on this device to find exactly where you are.
     Tap a word to see its meaning.<br><br>
+    <b>Point at a word:</b> in the camera, put the red + on a word. With <b>Live</b> on, the meaning appears on
+    screen by itself as you move. Or press Capture and it opens straight to that word.<br><br>
     <span class="badge ai">AI gloss</span> one-word meaning written by AI, using Sefaria's English as a guide (Berakhot: one meaning per word form for the whole tractate, so it can miss the sense in a particular spot).<br>
     <span class="badge off">Official</span> Sefaria's translation of the line (William Davidson / Steinsaltz). <b>Bold</b> = literal translation, plain = explanation.<br><br>
     After the first load, everything works offline. On iPad: Share → Add to Home Screen.
@@ -134,24 +164,29 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 <div id="sheet" role="dialog" aria-label="Word meaning">
   <button class="close" id="sheetClose">Close</button>
   <div class="word" id="sWord"></div>
+  <div id="sAbbr"></div>
   <div><span class="badge ai">AI gloss</span></div>
   <div class="gloss" id="sGloss"></div>
   <div class="small muted" id="sWhere"></div>
+  <div id="sJasBox" style="margin-top:12px;display:none"><span class="badge dict">Dictionary · Jastrow (public domain)</span><div id="sJas"></div></div>
   <div style="margin-top:12px"><span class="badge off">Official · Sefaria (William Davidson / Steinsaltz)</span></div>
   <div class="en" id="sEn"></div>
 </div>
 
 <div id="cam">
   <video id="video" playsinline muted autoplay></video>
-  <div id="guide"></div>
-  <div id="camHint">Fit the main Gemara text inside the yellow box</div>
+  <div id="guide"><div id="cross"></div></div>
+  <div id="camHint">Fill the yellow box with the main Gemara text · put the red + on a word</div>
+  <div id="camCard"></div>
   <div id="camBar">
-    <button id="camCancel">Cancel</button>
+    <button id="camCancel">Close</button>
+    <button id="camLive">Live: off</button>
     <button class="primary" id="camShot">Capture</button>
   </div>
 </div>
 
 <script src="vendor/tesseract.min.js"></script>
+<script src="jastrow.js"></script>
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
@@ -169,20 +204,29 @@ const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':
 const safeEn = s => esc(s).replace(/&lt;(\/?)b&gt;/g,"<$1b>");
 
 // ── Data + index ──────────────────────────────────────────────────────────
-let D, segs, dafs=[], tokens=[], tokSeg=[], inv=new Map(), dels=new Map(), globalGloss=new Map();
-let lastHits=new Set(), lastRange=null, lastOcr="";
+let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new Map(), globalGloss=new Map();
+let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
+
+// ── Settings (per device) ─────────────────────────────────────────────────
+const OPTS = {jas:true, abbr:true};
+try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
+const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
+const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+const recall = k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
 
 async function loadData(){
   D = await (await fetch(TRACTATE + ".json")).json();
   segs = D.segs;
   segs.forEach((s,i)=>{
     if(!dafs.length || dafs[dafs.length-1] !== s[0]) dafs.push(s[0]);
+    segStart.push(tokens.length);
     for(const m of s[1].matchAll(WORD_RE)){
       const k = matchKey(m[0]); if(!k) continue;
       const p = tokens.length; tokens.push(k); tokSeg.push(i);
       (inv.get(k) || inv.set(k,[]).get(k)).push(p);
     }
   });
+  segStart.push(tokens.length);
   for(const w of inv.keys()){
     if(w.length < 3) continue;
     for(let i=0;i<w.length;i++){
@@ -246,8 +290,10 @@ function locate(text){
   }
   // a photo covers several lines: score windows of 3 segments
   const win = i => (score[i-1]||0) + score[i] + (score[i+1]||0);
+  // people learn in order, so a spot near the last one found gets a small head start
+  const near = i => lastLoc!=null && Math.abs(i-lastLoc) <= 15 ? 1.3 : 1;
   const ranked = [];
-  for(let i=0;i<segs.length;i++) if(score[i]>0) ranked.push([win(i),i]);
+  for(let i=0;i<segs.length;i++) if(score[i]>0) ranked.push([win(i)*near(i),i]);
   ranked.sort((a,b)=>b[0]-a[0]);
   const picks=[];
   for(const r of ranked){ if(picks.every(p=>Math.abs(p[1]-r[1])>6)) picks.push(r); if(picks.length===4) break; }
@@ -261,6 +307,72 @@ function locate(text){
   return {picks, hitWords, nOcr: ocr.length};
 }
 
+function confLevel(res){
+  const [best,second] = res.picks;
+  const ratio = second ? best[0]/second[0] : 99;
+  return ratio>2 ? "High" : ratio>1.3 ? "Medium" : "Low";
+}
+
+// ── Point at a word: OCR box under (x,y) → exact word in the tractate ─────
+function wordAt(words, x, y){
+  let best=null, bd=Infinity;
+  for(const w of words){
+    if(!matchKey(w.text)) continue;
+    const b=w.bbox;
+    const dx = x<b.x0 ? b.x0-x : x>b.x1 ? x-b.x1 : 0;
+    const dy = y<b.y0 ? b.y0-y : y>b.y1 ? y-b.y1 : 0;
+    const d = dx + dy*3;                      // stay on the same line
+    if(d<bd){ bd=d; best=w; }
+  }
+  return best && bd < (best.bbox.y1-best.bbox.y0)*2 ? best : null;
+}
+
+function lev(a,b){
+  const m=a.length, n=b.length; let prev=[...Array(n+1).keys()];
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return prev[n];
+}
+function sim(a,b){
+  if(!a || !b) return 0;
+  if(a===b) return 1;
+  const r = 1 - lev(a,b)/Math.max(a.length,b.length);
+  return r>=.5 ? r*.8 : 0;
+}
+
+// The OCR word alone is often ambiguous (or misread), so line it up with its
+// neighbours against the real text of the located region.
+function alignWord(words, target, res){
+  if(!res.picks.length) return null;
+  const ks=[], j0=[];
+  for(const w of words){ const k=matchKey(w.text); if(!k) continue; if(w===target) j0.push(ks.length); ks.push(k); }
+  if(!j0.length) return null;
+  const j=j0[0], c=res.picks[0][1];
+  const a=segStart[Math.max(0,c-3)], b=segStart[Math.min(segs.length,c+4)];
+  let best=null, bs=0;
+  for(let p=a;p<b;p++){
+    let fwd=0, rev=0;
+    for(let k=1;k<=3;k++){
+      fwd += .6/k*(sim(ks[j-k],tokens[p-k]) + sim(ks[j+k],tokens[p+k]));
+      rev += .6/k*(sim(ks[j-k],tokens[p+k]) + sim(ks[j+k],tokens[p-k]));
+    }
+    const s = 2*sim(ks[j],tokens[p]) + Math.max(fwd,rev);
+    if(s>bs){ bs=s; best=p; }
+  }
+  return bs>=1.2 ? best : null;
+}
+
+function selectToken(p){
+  let sp=document.querySelector(`#text .w[data-p="${p}"]`);
+  if(!sp){ const s=tokSeg[p]; renderRange(Math.max(0,s-2), Math.min(segs.length-1,s+2), lastHits); sp=document.querySelector(`#text .w[data-p="${p}"]`); }
+  if(!sp) return;
+  showWord(sp, sp.textContent, tokSeg[p]);
+  sp.scrollIntoView({behavior:"smooth", block:"center"});
+}
+
 // ── Rendering ────────────────────────────────────────────────────────────
 function renderRange(a,b,hits){
   lastRange=[a,b];
@@ -269,10 +381,11 @@ function renderRange(a,b,hits){
     const div=document.createElement("div"); div.className="seg";
     const tag=document.createElement("span"); tag.className="daf"; tag.textContent=segs[s][0];
     div.appendChild(tag);
-    let last=0; const h=segs[s][1];
+    let last=0, p=segStart[s]; const h=segs[s][1];
     for(const m of h.matchAll(WORD_RE)){
       div.appendChild(document.createTextNode(h.slice(last,m.index)));
       const sp=document.createElement("span"); sp.className="w"; sp.textContent=m[0];
+      if(matchKey(m[0])) sp.dataset.p=p++;
       if(hits && hits.has(matchKey(m[0]))) sp.classList.add("hit");
       sp.onclick=()=>showWord(sp,m[0],s);
       div.appendChild(sp); last=m.index+m[0].length;
@@ -303,7 +416,22 @@ function showWord(span, word, segIdx){
   const lineNo = segIdx - segs.findIndex(s=>s[0]===segs[segIdx][0]) + 1;
   $("sWhere").textContent = `${TRACTATE} ${segs[segIdx][0]} · line ${lineNo}`;
   $("sEn").innerHTML = segs[segIdx][2] ? safeEn(segs[segIdx][2]) : "<i>No official translation for this line.</i>";
+  const ab = OPTS.abbr && abbrFor(word);
+  $("sAbbr").style.display = ab ? "block" : "none";
+  if(ab) $("sAbbr").textContent = "ראשי תיבות: " + ab;
+  const jas = OPTS.jas && window.Jastrow && Jastrow.ready ? Jastrow.lookup(word) : [];
+  $("sJasBox").style.display = jas.length ? "" : "none";
+  // the first match is usually right; the others are weaker guesses
+  const jrow = e=>`<div class="jas"><span class="hd">${esc(e.head)}</span>${esc(e.gloss||e.def)}${e.via?` <span class="via">(${esc(e.via)})</span>`:""}</div>`;
+  $("sJas").innerHTML = jas.length ? jrow(jas[0]) + (jas.length>1 ? `<details><summary>Other possible entries</summary>${jas.slice(1).map(jrow).join("")}</details>` : "") : "";
   $("sheet").classList.add("open");
+  lastLoc = segIdx; remember("gs.last", segIdx);
+}
+
+function abbrFor(word){
+  const w = word.replace(/[֑-ׇ]/g,"").replace(/'/g,"׳").replace(/"/g,"״").replace(/^״+|״+$/g,"");
+  if(!w.includes("״") && !w.endsWith("׳")) return null;
+  return (D.abbr||{})[w.replace(/[^א-ת]/g,"")] || null;
 }
 $("sheetClose").onclick=()=>$("sheet").classList.remove("open");
 
@@ -315,11 +443,11 @@ function showResult(res){
     $("conf").textContent=`Read ${res.nOcr} words, none matched Berakhot. Try a closer, sharper photo of the main text.`;
     $("alts").innerHTML=""; $("text").innerHTML=""; $("resultCard").style.display=""; return;
   }
-  const [best,second] = res.picks;
-  const ratio = second ? best[0]/second[0] : 99;
-  const level = ratio>2 ? "High" : ratio>1.3 ? "Medium" : "Low";
+  const best = res.picks[0];
+  const level = confLevel(res);
   lastHits = res.hitWords;
   const go = (i)=>{
+    lastLoc = i; remember("gs.last", i);
     $("where").textContent = `📍 ${TRACTATE} ${segs[i][0]}`;
     renderRange(Math.max(0,i-2), Math.min(segs.length-1,i+2), lastHits);
     [...$("alts").children].forEach(c=>c.classList.toggle("on", +c.dataset.i===i));
@@ -341,12 +469,17 @@ $("btnMore").onclick=()=>{
   const a=segs.findIndex(s=>s[0]===daf); let b=a; while(b+1<segs.length && segs[b+1][0]===daf) b++;
   renderRange(a,b,lastHits);
 };
-$("dafSel").onchange=e=>{
-  const d=e.target.value; if(!d) return;
-  const a=segs.findIndex(s=>s[0]===d); let b=a; while(b+1<segs.length && segs[b+1][0]===d) b++;
-  lastHits=new Set(); $("where").textContent=`${TRACTATE} ${d}`; $("conf").textContent="Chosen by hand"; $("alts").innerHTML="";
-  $("ocrRaw").textContent=""; $("hitsCard").style.display="none"; renderRange(a,b,null);
-};
+function showDaf(d, why){
+  const a=segs.findIndex(s=>s[0]===d); if(a<0) return;
+  let b=a; while(b+1<segs.length && segs[b+1][0]===d) b++;
+  lastHits=new Set(); lastLoc=a; remember("gs.last", a);
+  $("where").textContent=`${TRACTATE} ${d}`; $("conf").textContent=why; $("alts").innerHTML="";
+  $("ocrRaw").textContent=""; $("hitsCard").style.display="none"; $("dafSel").value=d; renderRange(a,b,null);
+}
+$("dafSel").onchange=e=>{ if(e.target.value) showDaf(e.target.value, "Chosen by hand"); };
+const stepDaf = n=>{ if(!lastRange) return; const i=dafs.indexOf(segs[lastRange[0]][0])+n; if(dafs[i]) showDaf(dafs[i], "Chosen by hand"); };
+$("btnPrev").onclick=()=>stepDaf(-1);
+$("btnNext").onclick=()=>stepDaf(1);
 $("q").oninput=e=>{
   const k=matchKey(e.target.value.trim()); const card=$("hitsCard");
   if(k.length<2){ card.style.display="none"; return; }
@@ -378,8 +511,8 @@ function getWorker(){
 let busyOn=false;
 function busy(on,msg){ busyOn=on; $("busy").classList.toggle("on",on); if(msg) $("busyMsg").textContent=msg; }
 
-function prep(src, sx, sy, sw, sh){
-  const maxW = 2200, minW = 1400;
+function prep(src, sx, sy, sw, sh, maxW=2200){
+  const minW = 1400;
   let scale = sw > maxW ? maxW/sw : sw < minW ? minW/sw : 1;
   const c=document.createElement("canvas"); c.width=Math.round(sw*scale); c.height=Math.round(sh*scale);
   const x=c.getContext("2d"); x.filter="grayscale(1) contrast(1.4)";
@@ -387,34 +520,62 @@ function prep(src, sx, sy, sw, sh){
   return c;
 }
 
-async function runOcr(canvas, psm){
-  busy(true,"Reading the page…");
-  try{
+// One OCR job at a time (live scanning and Capture share the engine).
+let ocrQ=Promise.resolve();
+function ocrCanvas(canvas, psm){
+  const job = ocrQ.then(async()=>{
     const w = await getWorker();
     await w.setParameters({tessedit_pageseg_mode: String(psm), preserve_interword_spaces:"1"});
+    return (await w.recognize(canvas)).data;
+  });
+  ocrQ = job.catch(()=>{});
+  return job;
+}
+
+// point = {x,y} in canvas pixels: open straight to the word there
+async function runOcr(canvas, psm, point){
+  busy(true,"Reading the page…");
+  try{
     const t0=performance.now();
-    const {data} = await w.recognize(canvas);
+    const data = await ocrCanvas(canvas, psm);
     lastOcr = data.text;
     busy(true,"Finding your place…");
     const res = locate(data.text);
     res.ms = Math.round(performance.now()-t0);
+    lastScan = {words:data.words||[], w:canvas.width, h:canvas.height, res};
+    $("photo").src = canvas.toDataURL("image/jpeg",.6); $("photo").style.display="block";
+    $("photoHint").style.display = res.picks.length ? "block" : "none";
     showResult(res);
+    if(point && res.picks.length){
+      const w = wordAt(lastScan.words, point.x, point.y);
+      const p = w && alignWord(lastScan.words, w, res);
+      if(p!=null) selectToken(p);
+    }
     return res;
   } catch(err){ alert("Scan failed: "+err.message); console.error(err); }
   finally{ busy(false); }
 }
-window.__scanTest = { locate, runOcr, prep };   // used by automated tests
+window.__scanTest = { locate, runOcr, prep, wordAt, alignWord, ocrCanvas };   // used by automated tests
 
 $("file").onchange=async e=>{
   const f=e.target.files[0]; if(!f) return;
   const url=URL.createObjectURL(f); const img=new Image();
-  img.onload=async()=>{ $("photo").src=url; $("photo").style.display="block";
-    await runOcr(prep(img,0,0,img.naturalWidth,img.naturalHeight), 3); };
+  img.onload=async()=>{ await runOcr(prep(img,0,0,img.naturalWidth,img.naturalHeight), 3); URL.revokeObjectURL(url); };
   img.src=url; e.target.value="";
 };
 
+// Tap a word in the scanned picture
+$("photo").onclick=e=>{
+  if(!lastScan || !lastScan.res.picks.length) return;
+  const r=e.target.getBoundingClientRect();
+  const x=(e.clientX-r.left)*lastScan.w/r.width, y=(e.clientY-r.top)*lastScan.h/r.height;
+  const w=wordAt(lastScan.words, x, y);
+  const p=w && alignWord(lastScan.words, w, lastScan.res);
+  if(p!=null) selectToken(p);
+};
+
 // ── Camera ────────────────────────────────────────────────────────────────
-let stream=null;
+let stream=null, live=recall("gs.live")==="1", liveLast=null;
 function contentRect(v){
   const ew=v.clientWidth, eh=v.clientHeight, vw=v.videoWidth, vh=v.videoHeight;
   const s=Math.min(ew/vw, eh/vh); const w=vw*s, h=vh*s;
@@ -426,12 +587,69 @@ function guideBox(){ // in video pixels
   const g=$("guide"); Object.assign(g.style,{left:gx+"px",top:gy+"px",width:gw+"px",height:gh+"px"});
   return {x:(gx-r.x)/r.s, y:(gy-r.y)/r.s, w:gw/r.s, h:gh/r.s};
 }
+function setLive(on){
+  live=on; remember("gs.live", on?"1":"0");
+  $("camLive").textContent = "Live: " + (on?"on":"off"); $("camLive").classList.toggle("on",on);
+  $("camCard").classList.toggle("on",on);
+  if(on){ camCard(null); liveLoop(); }
+}
+$("camLive").onclick=()=>setLive(!live);
+
+function camCard(r){
+  liveLast=r;
+  const el=$("camCard");
+  if(!r){ el.innerHTML=`<div class="cm">Looking… hold the iPad steady over the main text</div>`; return; }
+  const where=`📍 ${TRACTATE} ${segs[r.seg][0]}`;
+  if(r.p==null){ el.innerHTML=`<div class="cm">${where} · move the red + onto a word</div>`; return; }
+  const g=glossFor(r.word, tokSeg[r.p]);
+  const ab=OPTS.abbr && abbrFor(r.word);
+  el.innerHTML=`<div class="cm">${where} · tap for details</div><div class="cw">${esc(r.word.replace(/^[״"]+|[״"]+$/g,""))}</div>`+
+    (ab?`<div class="cm" style="direction:rtl">${esc(ab)}</div>`:"")+
+    `<div class="cg">${esc(g||"— not in dictionary yet —")}</div>`;
+}
+
+// the original word (with nikud) at token position p
+function tokenWord(p){
+  const s=tokSeg[p]; let q=segStart[s];
+  for(const m of segs[s][1].matchAll(WORD_RE)){ if(!matchKey(m[0])) continue; if(q++===p) return m[0]; }
+  return "";
+}
+
+let liveRunning=false;
+async function liveLoop(){
+  if(liveRunning) return; liveRunning=true;
+  try{
+    while(stream && live){
+      const v=$("video");
+      if(!v.videoWidth){ await new Promise(r=>setTimeout(r,300)); continue; }
+      const g=guideBox(), c=prep(v,g.x,g.y,g.w,g.h,1600);
+      let data; try{ data=await ocrCanvas(c,6); }catch(e){ console.warn(e); break; }
+      if(!stream || !live) break;
+      const res=locate(data.text);
+      if(!res.picks.length || confLevel(res)==="Low"){ camCard(null); continue; }
+      const w=wordAt(data.words||[], c.width/2, c.height/2);
+      const p=w ? alignWord(data.words, w, res) : null;
+      lastLoc=res.picks[0][1];
+      camCard({seg:res.picks[0][1], p, word:p!=null?tokenWord(p):"", res, data, c});
+    }
+  } finally{ liveRunning=false; }
+}
+$("camCard").onclick=()=>{
+  const r=liveLast; if(!r) return;
+  closeCam();
+  lastOcr=r.data.text;
+  lastScan={words:r.data.words||[], w:r.c.width, h:r.c.height, res:r.res};
+  $("photo").src=r.c.toDataURL("image/jpeg",.6); $("photo").style.display="block"; $("photoHint").style.display="block";
+  showResult(r.res);
+  if(r.p!=null) selectToken(r.p);
+};
+
 $("btnCam").onclick=async()=>{
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:3840}, height:{ideal:2160}}, audio:false});
   }catch(err){ alert("Camera not available ("+err.message+"). Use “Use a photo” instead."); return; }
   const v=$("video"); v.srcObject=stream; $("cam").classList.add("open");
-  v.onloadedmetadata=()=>{ v.play(); guideBox(); };
+  v.onloadedmetadata=()=>{ v.play(); guideBox(); setLive(live); };
   getWorker();   // warm up the OCR engine while the user aims
 };
 window.addEventListener("resize",()=>{ if(stream) guideBox(); });
@@ -442,27 +660,38 @@ $("camShot").onclick=async()=>{
   const full=document.createElement("canvas"); full.width=v.videoWidth; full.height=v.videoHeight;
   full.getContext("2d").drawImage(v,0,0);
   closeCam();
-  $("photo").src=full.toDataURL("image/jpeg",.7); $("photo").style.display="block";
-  await runOcr(prep(full,g.x,g.y,g.w,g.h), 6);
+  const c=prep(full,g.x,g.y,g.w,g.h);
+  await runOcr(c, 6, {x:c.width/2, y:c.height/2});
 };
-
 // ── Offline ───────────────────────────────────────────────────────────────
+const CACHE_NAME = "gemara-scan-v2";   // keep in step with sw.js
 async function boot(){
+  $("optJas").checked=OPTS.jas; $("optAbbr").checked=OPTS.abbr;
+  $("optJas").onchange=e=>{ OPTS.jas=e.target.checked; saveOpts(); if(OPTS.jas) loadJastrow(); };
+  $("optAbbr").onchange=e=>{ OPTS.abbr=e.target.checked; saveOpts(); };
   try{ await loadData(); }
   catch(e){ $("status").textContent="Couldn't load Berakhot data"; return; }
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
+  if(OPTS.jas) loadJastrow();
+  const saved = +recall("gs.last");
+  if(recall("gs.last")!=null && segs[saved]){ showDaf(segs[saved][0], "Where you left off"); lastLoc=saved; }
   if("serviceWorker" in navigator){
     try{
       await navigator.serviceWorker.register("sw.js");
-      const reg = await navigator.serviceWorker.ready;
+      await navigator.serviceWorker.ready;
       const check = async()=>{
-        const ok = await caches.has("gemara-scan-v1") && (await (await caches.open("gemara-scan-v1")).keys()).length >= 8;
+        const ok = await caches.has(CACHE_NAME) && (await (await caches.open(CACHE_NAME)).keys()).length >= 10;
         $("status").textContent = (ok ? "✓ Works offline · " : "Saving for offline… · ") + `${TRACTATE}, ${dafs.length} dafs`;
         if(!ok) setTimeout(check, 2000);
       };
       check();
     }catch(e){ console.warn(e); }
   }
+}
+let jasP=null;
+function loadJastrow(){
+  if(!window.Jastrow || jasP) return;
+  jasP = Jastrow.load("jastrow.json").then(()=>{ Jastrow.ready=true; }).catch(e=>{ console.warn("Jastrow", e); jasP=null; });
 }
 boot();
 </script>

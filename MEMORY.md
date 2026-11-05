@@ -141,6 +141,17 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   of the Davidson English for the exact line, so each occurrence gets its own
   meaning instead of one per word form.
 
+- 2026-11-05 — **Scanner v2 (terminal):** point-at-a-word mode — red + in the camera;
+  Capture opens straight to the word under it; **Live** mode shows the meaning on
+  screen as you move (OCR every ~1–2 s). Tap a word in the scanned picture to look it
+  up. Added offline Jastrow entries (labeled "Dictionary · Jastrow"), abbreviation
+  expansion (גמ׳ → גמרא), prev/next daf, remembers where you left off, and a small
+  Settings card (Jastrow, abbreviations — both on). Headless test on rendered pages:
+  4/4 dafs found, 97/97 crosshair words correct. Still not tried on a real printed page.
+- 2026-11-05 — **Jastrow weak spots:** some verbs miss (קוֹרִין → wrong entry, since
+  Jastrow files it under קרא) and it gives a root's general sense, not the one in
+  context (בערבין → "mix", not "evening"). The AI gloss stays the main answer.
+
 ## Open questions
 - Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
@@ -151,6 +162,7 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   fonts. This is the hardest technical part.
 
 ## Log — short notes on what each session did
+- 2026-11-05 (terminal) — Scanner v2: point-at-word, Live mode, Jastrow, abbreviations.
 - 2026-11-05 (phone) — Built the docs/scan offline scanner test app for the iPad Mini.
 - 2026-11-05 (phone) — Pivot discussed: pen → slim box, official-vs-AI labels, companion app, scanner approach.
 - 2026-11-05 (phone) — Found the pre-cut work in git history and wrote the Project history section.
