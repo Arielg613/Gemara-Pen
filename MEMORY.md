@@ -83,6 +83,29 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   then a hardware pen/box once the data and lookup are proven. Storage is easy:
   the whole corpus is well under 1 GB.
 
+- 2026-11-05 — **Form factor: a slim box with a screen, not a pen.** Ariel thinks of
+  it as a portable, offline Merkava-style library: the whole Torah corpus
+  (Gemara, Mishnayot, Shulchan Aruch, …). "Pen" is just the working name. A box
+  has room for a better camera and screen.
+- 2026-11-05 — **Labeling translations:** use the official (Sefaria) translation
+  wherever one exists, and AI only to fill the gaps. Every result shows its
+  source, e.g. "Official — Sefaria/Steinsaltz" vs "AI". The user always knows
+  which one they're looking at.
+- 2026-11-05 — **Companion app:** a phone app to check device status and download
+  or choose content packs onto the box. The box itself always works offline.
+- 2026-11-05 — **Location:** choose where you are by hand, OR scan and it jumps
+  there right away (auto-location by matching against the corpus).
+- 2026-11-05 — **Scanner insight:** the OCR doesn't need to be perfect, because
+  the box already holds the exact text. A rough read of a few words is
+  fuzzy-matched against the known corpus, and the match supplies the exact
+  word and location. This makes a good scanner realistic with off-the-shelf parts.
+- 2026-11-05 — **Hardware approach:** Claude can write all the software
+  (camera → OCR → match → display), pick off-the-shelf parts, and design a
+  3D-printable case. Claude can't build or manufacture anything physical.
+  Cheapest prototype: an old Android phone or cheap tablet locked to one app.
+  Next step: a Raspberry Pi + camera module + screen kit that Ariel assembles.
+  Factory production would need a hardware partner later.
+
 ## Open questions
 - Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
@@ -93,6 +116,7 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   fonts. This is the hardest technical part.
 
 ## Log — short notes on what each session did
+- 2026-11-05 (phone) — Pivot discussed: pen → slim box, official-vs-AI labels, companion app, scanner approach.
 - 2026-11-05 (phone) — Found the pre-cut work in git history and wrote the Project history section.
 - 2026-11-05 (phone) — Brainstormed the overall device vision and saved it above.
 - 2026-11-05 (phone) — Created this file and pointed `CLAUDE.md` at it.
