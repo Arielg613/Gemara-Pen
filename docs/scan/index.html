@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gemara Scanner</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gemara Scanner">
+<meta name="theme-color" content="#1f3a5f">
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e2ded5;
+  --accent:#1f3a5f; --accent-ink:#fff; --hit:#fff1b8; --sel:#cfe3ff;
+  --official:#1e7a46; --official-bg:#e3f4ea; --ai:#9a5b00; --ai-bg:#fff0d6;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#151517; --card:#1f1f22; --ink:#ececee; --muted:#9a9aa0; --line:#333338;
+    --accent:#7fa8de; --accent-ink:#0d1520; --hit:#4a3f12; --sel:#1f3d63;
+    --official:#6fd39b; --official-bg:#16301f; --ai:#f0b35a; --ai-bg:#3a2a10;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 16px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+header h1{font-size:19px;margin:0;font-weight:650}
+header .sub{color:var(--muted);font-size:13px}
+#status{margin-left:auto;font-size:13px;color:var(--muted)}
+main{max-width:900px;margin:0 auto;padding:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  font:inherit;font-weight:600;padding:12px 16px;border-radius:12px;cursor:pointer;min-height:48px}
+button.primary,.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5}
+select,input[type=search]{font:inherit;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink);min-height:48px}
+input[type=search]{flex:1;min-width:180px;direction:rtl}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-top:14px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+#where{font-weight:650;font-size:17px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;background:var(--bg);cursor:pointer}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.text{direction:rtl;text-align:right;font-family:"Taamey Frank CLM","SBL Hebrew","Times New Roman",serif;
+  font-size:24px;line-height:2.05}
+.seg{padding:4px 0;border-bottom:1px dashed var(--line)}
+.seg:last-child{border-bottom:0}
+.seg .daf{font:12px/1 -apple-system,sans-serif;color:var(--muted);margin-left:8px;direction:ltr;display:inline-block}
+.w{cursor:pointer;border-radius:6px;padding:0 2px}
+.w.hit{background:var(--hit)}
+.w.sel{background:var(--sel);outline:2px solid var(--accent)}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);
+  box-shadow:0 -8px 30px rgba(0,0,0,.18);border-radius:18px 18px 0 0;padding:14px 18px calc(18px + env(safe-area-inset-bottom));
+  max-height:62vh;overflow:auto;transform:translateY(105%);transition:transform .2s ease}
+#sheet.open{transform:none}
+#sheet .word{direction:rtl;font-family:"Times New Roman",serif;font-size:34px;font-weight:600}
+#sheet .gloss{font-size:22px;font-weight:650;margin:2px 0 6px}
+.badge{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;letter-spacing:.2px}
+.badge.ai{color:var(--ai);background:var(--ai-bg)}
+.badge.off{color:var(--official);background:var(--official-bg)}
+#sheet .en{font-size:16px;margin-top:6px}
+#sheet .en b{font-weight:700}
+.close{position:absolute;top:10px;left:12px;min-height:36px;padding:6px 12px}
+#cam{position:fixed;inset:0;background:#000;z-index:30;display:none}
+#cam.open{display:block}
+#cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#guide{position:absolute;border:3px solid #ffd54a;border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none}
+#camBar{position:absolute;left:0;right:0;bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  display:flex;gap:12px;justify-content:center;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+#camHint{position:absolute;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;color:#fff;font-size:15px;text-shadow:0 1px 3px #000}
+#busy{display:none;align-items:center;gap:10px}
+#busy.on{display:flex}
+.spin{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+details summary{cursor:pointer;color:var(--muted);font-size:14px}
+pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;background:var(--bg);padding:8px;border-radius:8px}
+#photo{max-width:100%;max-height:220px;border-radius:10px;display:none;margin-top:10px}
+.hits a{display:block;padding:8px 0;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none;cursor:pointer}
+.hits .snip{direction:rtl;text-align:right;font-family:"Times New Roman",serif;font-size:18px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Gemara Scanner</h1>
+    <div class="sub">Test build · Berakhot only</div>
+  </div>
+  <div id="status">Loading…</div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="row">
+      <button class="primary" id="btnCam">📷 Scan with camera</button>
+      <label class="btn" for="file">🖼 Use a photo</label>
+      <input id="file" type="file" accept="image/*" hidden>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <select id="dafSel" aria-label="Go to daf"><option value="">Go to daf…</option></select>
+      <input id="q" type="search" placeholder="הקלד מילה / type a word" aria-label="Search a word">
+    </div>
+    <div id="busy" class="small muted" style="margin-top:12px"><div class="spin"></div><span id="busyMsg">Reading…</span></div>
+    <img id="photo" alt="Last scan">
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div id="where"></div>
+    <div id="conf" class="small muted"></div>
+    <div class="chips" id="alts"></div>
+    <div class="small muted" style="margin-top:8px">Tap any word. Highlighted words are the ones the camera read.</div>
+    <div class="text" id="text" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnMore">Show whole daf</button>
+    </div>
+    <details style="margin-top:10px"><summary>What the camera read (for testing)</summary><pre id="ocrRaw"></pre></details>
+  </div>
+
+  <div class="card hits" id="hitsCard" style="display:none"></div>
+
+  <div class="card small muted">
+    <b>How it works:</b> photograph the main Gemara text (not Rashi/Tosafot). The scanner reads it roughly,
+    then matches it against the full Berakhot text stored on this device to find exactly where you are.
+    Tap a word to see its meaning.<br><br>
+    <span class="badge ai">AI gloss</span> one-word meaning written by AI, using Sefaria's English as a guide (Berakhot: one meaning per word form for the whole tractate, so it can miss the sense in a particular spot).<br>
+    <span class="badge off">Official</span> Sefaria's translation of the line (William Davidson / Steinsaltz). <b>Bold</b> = literal translation, plain = explanation.<br><br>
+    After the first load, everything works offline. On iPad: Share → Add to Home Screen.
+  </div>
+</main>
+
+<div id="sheet" role="dialog" aria-label="Word meaning">
+  <button class="close" id="sheetClose">Close</button>
+  <div class="word" id="sWord"></div>
+  <div><span class="badge ai">AI gloss</span></div>
+  <div class="gloss" id="sGloss"></div>
+  <div class="small muted" id="sWhere"></div>
+  <div style="margin-top:12px"><span class="badge off">Official · Sefaria (William Davidson / Steinsaltz)</span></div>
+  <div class="en" id="sEn"></div>
+</div>
+
+<div id="cam">
+  <video id="video" playsinline muted autoplay></video>
+  <div id="guide"></div>
+  <div id="camHint">Fit the main Gemara text inside the yellow box</div>
+  <div id="camBar">
+    <button id="camCancel">Cancel</button>
+    <button class="primary" id="camShot">Capture</button>
+  </div>
+</div>
+
+<script src="vendor/tesseract.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const TRACTATE = "Berakhot";
+
+// ── Normalization (matches build_lookup_index.py) ─────────────────────────
+const SOFIT = {"ך":"כ","ם":"מ","ן":"נ","ף":"פ","ץ":"צ"};
+const WORD_RE = /[א-ת֑-ֽֿׁׂׄ-ׇ׳״'"]+/g;
+function glossKey(w){ // nikud stripped, sofit normalized, keeps ׳ ״ (abbreviations)
+  return w.replace(/[֑-ׇ]/g,"").replace(/[ךםןףץ]/g,c=>SOFIT[c])
+          .replace(/'/g,"׳").replace(/"/g,"״").replace(/^[״׳]+|״+$/g,"");
+}
+function matchKey(w){ return glossKey(w).replace(/[^א-ת]/g,""); }
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const safeEn = s => esc(s).replace(/&lt;(\/?)b&gt;/g,"<$1b>");
+
+// ── Data + index ──────────────────────────────────────────────────────────
+let D, segs, dafs=[], tokens=[], tokSeg=[], inv=new Map(), dels=new Map(), globalGloss=new Map();
+let lastHits=new Set(), lastRange=null, lastOcr="";
+
+async function loadData(){
+  D = await (await fetch(TRACTATE + ".json")).json();
+  segs = D.segs;
+  segs.forEach((s,i)=>{
+    if(!dafs.length || dafs[dafs.length-1] !== s[0]) dafs.push(s[0]);
+    for(const m of s[1].matchAll(WORD_RE)){
+      const k = matchKey(m[0]); if(!k) continue;
+      const p = tokens.length; tokens.push(k); tokSeg.push(i);
+      (inv.get(k) || inv.set(k,[]).get(k)).push(p);
+    }
+  });
+  for(const w of inv.keys()){
+    if(w.length < 3) continue;
+    for(let i=0;i<w.length;i++){
+      const d = w.slice(0,i)+w.slice(i+1);
+      (dels.get(d) || dels.set(d,new Set()).get(d)).add(w);
+    }
+  }
+  for(const d of dafs) for(const [k,v] of Object.entries(D.gloss[d]||{})) if(!globalGloss.has(k)) globalGloss.set(k,v);
+  const sel = $("dafSel");
+  for(const d of dafs){ const o=document.createElement("option"); o.value=d; o.textContent=TRACTATE+" "+d; sel.appendChild(o); }
+}
+
+const idf = w => Math.log((tokens.length+1) / ((inv.get(w)||[]).length+1));
+
+function candidates(t){
+  if(inv.has(t)) return [[t,1]];
+  if(t.length < 3) return [];
+  const out = new Map();
+  for(const w of (dels.get(t)||[])) out.set(w,.6);              // OCR dropped a letter
+  for(let i=0;i<t.length;i++){
+    const d = t.slice(0,i)+t.slice(i+1);
+    if(inv.has(d) && d.length>=3) out.set(d,.6);                  // OCR added a letter
+    for(const w of (dels.get(d)||[])) if(w.length===t.length) out.set(w, Math.max(out.get(w)||0,.55)); // swapped letter
+  }
+  return [...out].sort((a,b)=>idf(b[0])-idf(a[0])).slice(0,6);
+}
+
+// ── Locate: rough OCR text → best spot in the tractate ───────────────────
+function locate(text){
+  const ocr = [];
+  for(const k of (text.match(WORD_RE)||[]).map(matchKey)){
+    if(k.length<2) continue;
+    if(!inv.has(k) && k.length>=5){       // OCR often glues two words together at a line end
+      let best=null;
+      for(let i=2;i<=k.length-2;i++){
+        const a=k.slice(0,i), b=k.slice(i);
+        if(inv.has(a) && inv.has(b)){ const sc=Math.min(idf(a),idf(b)); if(!best||sc>best[0]) best=[sc,a,b]; }
+      }
+      if(best){ ocr.push(best[1], best[2]); continue; }
+    }
+    ocr.push(k);
+  }
+  const cands = ocr.map(candidates);
+  const score = new Float64Array(segs.length);
+  const hitWords = new Set();
+  cands.forEach(cs=>{
+    const local = new Map();
+    for(const [w,f] of cs){
+      const wt = idf(w)*f;
+      for(const p of inv.get(w)){ const s=tokSeg[p]; if((local.get(s)||0) < wt) local.set(s,wt); }
+    }
+    for(const [s,v] of local) score[s]+=v;
+  });
+  for(let i=0;i+1<cands.length;i++){                       // consecutive-word bonus
+    for(const [a,fa] of cands[i]) for(const [b,fb] of cands[i+1]){
+      for(const p of inv.get(a)){
+        if(tokens[p+1]===b){ score[tokSeg[p]] += 1.5*(idf(a)*fa+idf(b)*fb); hitWords.add(a); hitWords.add(b); }
+        else if(p>0 && tokens[p-1]===b){ score[tokSeg[p]] += .7*(idf(a)*fa+idf(b)*fb); }
+      }
+    }
+  }
+  // a photo covers several lines: score windows of 3 segments
+  const win = i => (score[i-1]||0) + score[i] + (score[i+1]||0);
+  const ranked = [];
+  for(let i=0;i<segs.length;i++) if(score[i]>0) ranked.push([win(i),i]);
+  ranked.sort((a,b)=>b[0]-a[0]);
+  const picks=[];
+  for(const r of ranked){ if(picks.every(p=>Math.abs(p[1]-r[1])>6)) picks.push(r); if(picks.length===4) break; }
+  // every candidate word present in the chosen region counts as "read"
+  if(picks.length){
+    const c = picks[0][1], inRegion = new Set();
+    for(let s=Math.max(0,c-3); s<=Math.min(segs.length-1,c+3); s++)
+      for(const m of segs[s][1].matchAll(WORD_RE)) inRegion.add(matchKey(m[0]));
+    cands.forEach(cs=>{ for(const [w] of cs) if(inRegion.has(w)) { hitWords.add(w); break; } });
+  }
+  return {picks, hitWords, nOcr: ocr.length};
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────
+function renderRange(a,b,hits){
+  lastRange=[a,b];
+  const el=$("text"); el.innerHTML="";
+  for(let s=a;s<=b;s++){
+    const div=document.createElement("div"); div.className="seg";
+    const tag=document.createElement("span"); tag.className="daf"; tag.textContent=segs[s][0];
+    div.appendChild(tag);
+    let last=0; const h=segs[s][1];
+    for(const m of h.matchAll(WORD_RE)){
+      div.appendChild(document.createTextNode(h.slice(last,m.index)));
+      const sp=document.createElement("span"); sp.className="w"; sp.textContent=m[0];
+      if(hits && hits.has(matchKey(m[0]))) sp.classList.add("hit");
+      sp.onclick=()=>showWord(sp,m[0],s);
+      div.appendChild(sp); last=m.index+m[0].length;
+    }
+    div.appendChild(document.createTextNode(h.slice(last)));
+    el.appendChild(div);
+  }
+  $("resultCard").style.display="";
+}
+
+function glossFor(word, segIdx){
+  const k = glossKey(word), daf = segs[segIdx][0], di = dafs.indexOf(daf);
+  const keys = [k, k.replace(/[״׳]/g,"")];
+  for(const off of [0,-1,1,-2,2,-3,3]){
+    const g = D.gloss[dafs[di+off]]; if(!g) continue;
+    for(const kk of keys) if(g[kk]) return g[kk];
+  }
+  for(const kk of keys) if(globalGloss.has(kk)) return globalGloss.get(kk);
+  return null;
+}
+
+function showWord(span, word, segIdx){
+  document.querySelectorAll(".w.sel").forEach(x=>x.classList.remove("sel"));
+  span.classList.add("sel");
+  $("sWord").textContent = word.replace(/^[״"]+|[״"]+$/g,"");
+  const g = glossFor(word, segIdx);
+  $("sGloss").textContent = g || "— not in dictionary yet —";
+  const lineNo = segIdx - segs.findIndex(s=>s[0]===segs[segIdx][0]) + 1;
+  $("sWhere").textContent = `${TRACTATE} ${segs[segIdx][0]} · line ${lineNo}`;
+  $("sEn").innerHTML = segs[segIdx][2] ? safeEn(segs[segIdx][2]) : "<i>No official translation for this line.</i>";
+  $("sheet").classList.add("open");
+}
+$("sheetClose").onclick=()=>$("sheet").classList.remove("open");
+
+function showResult(res){
+  $("hitsCard").style.display="none";
+  $("ocrRaw").textContent = lastOcr || "(nothing)";
+  if(!res.picks.length){
+    $("where").textContent="Couldn't find this spot";
+    $("conf").textContent=`Read ${res.nOcr} words, none matched Berakhot. Try a closer, sharper photo of the main text.`;
+    $("alts").innerHTML=""; $("text").innerHTML=""; $("resultCard").style.display=""; return;
+  }
+  const [best,second] = res.picks;
+  const ratio = second ? best[0]/second[0] : 99;
+  const level = ratio>2 ? "High" : ratio>1.3 ? "Medium" : "Low";
+  lastHits = res.hitWords;
+  const go = (i)=>{
+    $("where").textContent = `📍 ${TRACTATE} ${segs[i][0]}`;
+    renderRange(Math.max(0,i-2), Math.min(segs.length-1,i+2), lastHits);
+    [...$("alts").children].forEach(c=>c.classList.toggle("on", +c.dataset.i===i));
+  };
+  $("conf").textContent = `Confidence: ${level} · matched ${res.hitWords.size} of ${res.nOcr} words read`;
+  $("alts").innerHTML="";
+  res.picks.forEach(([,i],n)=>{
+    const c=document.createElement("span"); c.className="chip"; c.dataset.i=i;
+    c.textContent = (n===0?"Best: ":"") + TRACTATE+" "+segs[i][0]; c.onclick=()=>go(i);
+    $("alts").appendChild(c);
+  });
+  go(best[1]);
+  $("resultCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+$("btnMore").onclick=()=>{
+  if(!lastRange) return;
+  const daf=segs[lastRange[0]][0];
+  const a=segs.findIndex(s=>s[0]===daf); let b=a; while(b+1<segs.length && segs[b+1][0]===daf) b++;
+  renderRange(a,b,lastHits);
+};
+$("dafSel").onchange=e=>{
+  const d=e.target.value; if(!d) return;
+  const a=segs.findIndex(s=>s[0]===d); let b=a; while(b+1<segs.length && segs[b+1][0]===d) b++;
+  lastHits=new Set(); $("where").textContent=`${TRACTATE} ${d}`; $("conf").textContent="Chosen by hand"; $("alts").innerHTML="";
+  $("ocrRaw").textContent=""; $("hitsCard").style.display="none"; renderRange(a,b,null);
+};
+$("q").oninput=e=>{
+  const k=matchKey(e.target.value.trim()); const card=$("hitsCard");
+  if(k.length<2){ card.style.display="none"; return; }
+  const ps=(inv.get(k)||[]).slice(0,40);
+  card.innerHTML = `<div class="muted small">${(inv.get(k)||[]).length} times in ${TRACTATE}${ps.length<(inv.get(k)||[]).length?" (first 40)":""}</div>`;
+  for(const p of ps){
+    const s=tokSeg[p]; const a=document.createElement("a");
+    a.innerHTML=`<span class="small muted">${TRACTATE} ${segs[s][0]}</span><div class="snip">${esc(segs[s][1].slice(0,90))}…</div>`;
+    a.onclick=()=>{ lastHits=new Set([k]); $("where").textContent=`${TRACTATE} ${segs[s][0]}`; $("conf").textContent="From search"; $("alts").innerHTML=""; renderRange(Math.max(0,s-1),Math.min(segs.length-1,s+1),lastHits); $("resultCard").scrollIntoView({behavior:"smooth"}); };
+    card.appendChild(a);
+  }
+  if(!ps.length) card.innerHTML+=`<div class="muted">Not found.</div>`;
+  card.style.display="";
+};
+
+// ── OCR ───────────────────────────────────────────────────────────────────
+let workerP=null;
+function getWorker(){
+  if(!workerP){
+    const base = new URL("vendor/", location.href).href;
+    workerP = Tesseract.createWorker("heb", 1, {
+      workerPath: base+"worker.min.js", corePath: base, langPath: base+"lang",
+      workerBlobURL: false, gzip: true,
+      logger: m => { if(m.status && busyOn) $("busyMsg").textContent = m.status.replace(/^\w/,c=>c.toUpperCase()) + (m.progress? ` ${Math.round(m.progress*100)}%`:""); }
+    });
+  }
+  return workerP;
+}
+let busyOn=false;
+function busy(on,msg){ busyOn=on; $("busy").classList.toggle("on",on); if(msg) $("busyMsg").textContent=msg; }
+
+function prep(src, sx, sy, sw, sh){
+  const maxW = 2200, minW = 1400;
+  let scale = sw > maxW ? maxW/sw : sw < minW ? minW/sw : 1;
+  const c=document.createElement("canvas"); c.width=Math.round(sw*scale); c.height=Math.round(sh*scale);
+  const x=c.getContext("2d"); x.filter="grayscale(1) contrast(1.4)";
+  x.drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);
+  return c;
+}
+
+async function runOcr(canvas, psm){
+  busy(true,"Reading the page…");
+  try{
+    const w = await getWorker();
+    await w.setParameters({tessedit_pageseg_mode: String(psm), preserve_interword_spaces:"1"});
+    const t0=performance.now();
+    const {data} = await w.recognize(canvas);
+    lastOcr = data.text;
+    busy(true,"Finding your place…");
+    const res = locate(data.text);
+    res.ms = Math.round(performance.now()-t0);
+    showResult(res);
+    return res;
+  } catch(err){ alert("Scan failed: "+err.message); console.error(err); }
+  finally{ busy(false); }
+}
+window.__scanTest = { locate, runOcr, prep };   // used by automated tests
+
+$("file").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f); const img=new Image();
+  img.onload=async()=>{ $("photo").src=url; $("photo").style.display="block";
+    await runOcr(prep(img,0,0,img.naturalWidth,img.naturalHeight), 3); };
+  img.src=url; e.target.value="";
+};
+
+// ── Camera ────────────────────────────────────────────────────────────────
+let stream=null;
+function contentRect(v){
+  const ew=v.clientWidth, eh=v.clientHeight, vw=v.videoWidth, vh=v.videoHeight;
+  const s=Math.min(ew/vw, eh/vh); const w=vw*s, h=vh*s;
+  return {x:(ew-w)/2, y:(eh-h)/2, w, h, s};
+}
+function guideBox(){ // in video pixels
+  const v=$("video"), r=contentRect(v);
+  const gw=r.w*.86, gh=r.h*.6, gx=r.x+(r.w-gw)/2, gy=r.y+(r.h-gh)/2 - r.h*.04;
+  const g=$("guide"); Object.assign(g.style,{left:gx+"px",top:gy+"px",width:gw+"px",height:gh+"px"});
+  return {x:(gx-r.x)/r.s, y:(gy-r.y)/r.s, w:gw/r.s, h:gh/r.s};
+}
+$("btnCam").onclick=async()=>{
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:3840}, height:{ideal:2160}}, audio:false});
+  }catch(err){ alert("Camera not available ("+err.message+"). Use “Use a photo” instead."); return; }
+  const v=$("video"); v.srcObject=stream; $("cam").classList.add("open");
+  v.onloadedmetadata=()=>{ v.play(); guideBox(); };
+  getWorker();   // warm up the OCR engine while the user aims
+};
+window.addEventListener("resize",()=>{ if(stream) guideBox(); });
+function closeCam(){ $("cam").classList.remove("open"); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+$("camCancel").onclick=closeCam;
+$("camShot").onclick=async()=>{
+  const v=$("video"); const g=guideBox();
+  const full=document.createElement("canvas"); full.width=v.videoWidth; full.height=v.videoHeight;
+  full.getContext("2d").drawImage(v,0,0);
+  closeCam();
+  $("photo").src=full.toDataURL("image/jpeg",.7); $("photo").style.display="block";
+  await runOcr(prep(full,g.x,g.y,g.w,g.h), 6);
+};
+
+// ── Offline ───────────────────────────────────────────────────────────────
+async function boot(){
+  try{ await loadData(); }
+  catch(e){ $("status").textContent="Couldn't load Berakhot data"; return; }
+  $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
+  if("serviceWorker" in navigator){
+    try{
+      await navigator.serviceWorker.register("sw.js");
+      const reg = await navigator.serviceWorker.ready;
+      const check = async()=>{
+        const ok = await caches.has("gemara-scan-v1") && (await (await caches.open("gemara-scan-v1")).keys()).length >= 8;
+        $("status").textContent = (ok ? "✓ Works offline · " : "Saving for offline… · ") + `${TRACTATE}, ${dafs.length} dafs`;
+        if(!ok) setTimeout(check, 2000);
+      };
+      check();
+    }catch(e){ console.warn(e); }
+  }
+}
+boot();
+</script>
+</body>
+</html>

@@ -119,6 +119,28 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
     copyrighted, so there's no official English to use. It would need
     permission or AI-only translation.
 
+- 2026-11-05 — **Test device: Ariel's iPad Mini** (its camera is the scanner).
+  First book: Berakhot only.
+- 2026-11-05 — **How the Berakhot glosses were made** (older Haiku build, May 2026):
+  every unique word form in the tractate was paired with the SHORTEST Sefaria
+  segment it appears in (Hebrew + William Davidson English). Batches went to
+  Claude, which wrote a 1–5 word gloss for that word, using the Sefaria English
+  as a guide. Result: ONE gloss per word form for the whole tractate, repeated
+  on every daf it appears on. Weakness: no sense specific to the spot (e.g. עַמּוּד
+  on 2a = "pillar", but there it means dawn). Megillah's newer Sonnet build adds
+  a check against Sefaria; it's still one gloss per word form.
+- 2026-11-05 — **Scanner test app built:** `docs/scan/` (live at
+  arielg613.github.io/gemara-pen/scan/). Offline web app: camera or photo →
+  Tesseract Hebrew OCR running on the device → fuzzy match against the full
+  Berakhot text → jumps to the daf and shows the REAL text (not the OCR). Tap a
+  word for the AI gloss (labeled) + Sefaria's official English for that line
+  (labeled; bold = literal). Tested on rendered pages, including blurry ones:
+  4/4 found the correct daf in ~1–2 s, and it also works with the network off.
+  Not yet tested on a real printed Vilna page.
+- 2026-11-05 — **Improvement idea:** per-spot glosses. Use the bold (literal) part
+  of the Davidson English for the exact line, so each occurrence gets its own
+  meaning instead of one per word form.
+
 ## Open questions
 - Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
@@ -129,6 +151,7 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   fonts. This is the hardest technical part.
 
 ## Log — short notes on what each session did
+- 2026-11-05 (phone) — Built the docs/scan offline scanner test app for the iPad Mini.
 - 2026-11-05 (phone) — Pivot discussed: pen → slim box, official-vs-AI labels, companion app, scanner approach.
 - 2026-11-05 (phone) — Found the pre-cut work in git history and wrote the Project history section.
 - 2026-11-05 (phone) — Brainstormed the overall device vision and saved it above.

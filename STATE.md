@@ -95,6 +95,10 @@ lookup/*.json           nikud-free lookup indexes, same shape as dictionaries
 lookup/abbreviations.json  11,660 rashei tevot
 lookup/master.json      28,148 keys, all tractates merged
 docs/index.html         searchable web dictionary (GitHub Pages)
+build_scan_data.py      builds docs/scan/<Tractate>.json for the scanner app
+docs/scan/              offline scanner test app (camera → OCR → find daf → tap word)
+                        live at arielg613.github.io/gemara-pen/scan/
+                        bump CACHE in docs/scan/sw.js whenever a file there changes
 ```
 
 **Gitignored build artifacts** — `word_contexts.json`, `real_dictionary.json`,
