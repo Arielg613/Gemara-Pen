@@ -1,6 +1,10 @@
 # Gemara Pen — Dictionary Builder
 
-> **New session? Read `STATE.md` first.** This file is the rules; `STATE.md`
+> **New session? Read `MEMORY.md` and `STATE.md` first.** `MEMORY.md` is the
+> memory shared between Ariel's terminal and phone sessions: preferences,
+> decisions and ideas. Add to it whenever something new comes up, then commit and push.
+>
+> **Also:** read `STATE.md`. This file is the rules; `STATE.md`
 > is where the work actually stands — which tractates are done, what broke
 > last, and what to run next.
 
