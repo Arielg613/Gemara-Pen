@@ -106,6 +106,19 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   Next step: a Raspberry Pi + camera module + screen kit that Ariel assembles.
   Factory production would need a hardware partner later.
 
+- 2026-11-05 — **Ariel owns a 3D printer.** Use it for the case, a page stand,
+  and the camera mount. Claude designs the files (OpenSCAD/STL); Ariel prints.
+- 2026-11-05 — **Which text to start with:** choosing between Gemara and "Kitzur
+  Yalkut Yosef" (Ariel's words; might mean Kitzur Shulchan Aruch). What's
+  actually available:
+  - Gemara: full Sefaria English (Davidson/Steinsaltz), and 3 tractates of
+    word dictionaries already built. Recommended starting point.
+  - Kitzur Shulchan Aruch (Ganzfried): on Sefaria, Hebrew + full English
+    (Metsudah translation, Avrohom Davis, CC-BY). Small (~2.6 MB) and quick to add.
+  - Yalkut Yosef / Kitzur Yalkut Yosef: NOT on Sefaria (checked the export). It's
+    copyrighted, so there's no official English to use. It would need
+    permission or AI-only translation.
+
 ## Open questions
 - Licensing: Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
