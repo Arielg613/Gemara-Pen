@@ -20,6 +20,31 @@ ideas in flight.
 
 ---
 
+## Project history — already built (check here before re-brainstorming)
+The repo was cut down to just the dictionary builder on 2026-05-31 (commit
+`95cb326`). Everything below was built **before** that cut and still exists in
+git history. To bring a file back: `git show 09baf13:<path>`, or
+`git checkout 09baf13 -- <path>`.
+- **Jastrow "brain"** (`jastrow.py`, `morphology.py`, `data/jastrow.json`):
+  28,373 headwords, works offline. Strips prefixes and suffixes to find the root
+  and follows cross-references. About 95% coverage of Talmud vocabulary.
+- **Phone prototype** (`mobile/`, React Native/Expo): camera OCR (ML Kit),
+  scan line, zoom, auto-scan → Jastrow lookup, plus a Hebrew/Aramaic badge.
+- **Web app** (`app.py`, `templates/index.html`, `translator.py`): Flask app with
+  photo upload, Rashi OCR and Sefaria passage search. It was deployed on
+  Render/Railway (gemarapen.up.railway.app — may be down now).
+- **Context-aware pieces:** `tractate_sense.json` (sense of a word per tractate),
+  `phrases.json`, `context_embedder.py` (TF-IDF, ready for the BEREL model),
+  `pen_test.py` (pen test console).
+- **`DEVELOPER_PROMPT.md`**: handoff for a hardware/OCR developer. Build order:
+  phone prototype → offline Tesseract → brain on the device → pen hardware.
+- **After the cut (still in the repo):** the per-word, per-daf dictionary
+  pipeline (Sonnet, checked against Sefaria), lookup indexes, abbreviations,
+  and a searchable web dictionary at `docs/index.html` (GitHub Pages).
+  Megillah, Berakhot and Shabbat are done.
+- **Not done yet:** Mishnayot and Shulchan Aruch (Gemara only so far),
+  auto-location by scanning, and any physical hardware.
+
 ## Preferences — how Ariel likes to work
 - 2026-11-05 — Uses the terminal most of the time. Uses the phone app on the go,
   mainly for brainstorming.
@@ -54,7 +79,7 @@ ideas in flight.
 - 2026-11-05 — **Idea: drop the knob with auto-location.** Scan a few words and
   search the whole corpus offline to find where you are (tractate/daf, siman/se'if).
   Keep the knob as a fallback when the match is ambiguous.
-- 2026-11-05 — **Prototype path:** offline phone app first (camera + OCR + lookup),
+- 2026-11-05 — **Prototype path** (already planned in May; see Project history): offline phone app first (camera + OCR + lookup),
   then a hardware pen/box once the data and lookup are proven. Storage is easy:
   the whole corpus is well under 1 GB.
 
@@ -68,5 +93,6 @@ ideas in flight.
   fonts. This is the hardest technical part.
 
 ## Log — short notes on what each session did
+- 2026-11-05 (phone) — Found the pre-cut work in git history and wrote the Project history section.
 - 2026-11-05 (phone) — Brainstormed the overall device vision and saved it above.
 - 2026-11-05 (phone) — Created this file and pointed `CLAUDE.md` at it.
