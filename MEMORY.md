@@ -220,6 +220,14 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   Claude. Every word on those dafs shows its phrase + spot meaning in the app. To do more
   dafs later: same pipeline (parts go in phrases/parts/, merge, build_scan_data.py).
 
+- 2026-11-05 — **Device decided (Ariel): NOT a touchscreen.** "It's a simple device, small
+  screen that shows word or phrase." Picked: **wand / thick pen** shape (camera looks just
+  past the tip), **small color LCD (~1.5")**, **3 buttons**: middle = scan / find my place,
+  left/right = previous/next phrase, long-press middle = whole line in English. Key idea:
+  scan once to lock your place, then step phrase by phrase with the buttons (no re-scan).
+  Supersedes the earlier "slim box with a screen" idea. The web app's tap-a-word UI is just
+  for testing; the device UI should be built to match this.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
