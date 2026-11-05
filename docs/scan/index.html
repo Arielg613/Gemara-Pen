@@ -1022,7 +1022,15 @@ $("camShot").onclick=async()=>{
 // ── Device simulator: the real device's screen and buttons, nothing else ──
 // Buttons: ◀ next · ● scan / select (hold = section in English) · ▶ back · ☰ menu.
 // States: home (no place yet) → scan (viewfinder + laser) → reader → menu.
-const DEV = {state:"home", p:null, mode:"phrase", big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
+// How much of the page the device's camera sees. The phone held about 20 cm above the
+// page sees ~22 cm across; a pen camera close to the page sees only a few cm.
+const DEV_VIEWS = [
+  {k:"phone", t:"Wide (several lines, recommended)", cm:22},
+  {k:"wand",  t:"Wide wand (~8 cm)",    cm:8},
+  {k:"pen",   t:"Pen (~5 cm, 4–6 words)", cm:5},
+  {k:"close", t:"Pen on the page (~3 cm)", cm:3},
+];
+const DEV = {view:"phone", state:"home", p:null, mode:"phrase", big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
 const devEl = id => document.getElementById(id);
 
 function openDevice(p){
@@ -1087,6 +1095,7 @@ function devMenuItems(){
   return [
     {t: DEV.mode==="phrase" ? "Step: phrase by phrase" : "Step: word by word", f:()=>{ DEV.mode = DEV.mode==="phrase"?"word":"phrase"; remember("gs.devmode",DEV.mode); devRenderMenu(); }},
     {t: "Go to a daf…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
+    {t: "Camera sees: "+(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).t, f:()=>{ const i=DEV_VIEWS.findIndex(x=>x.k===DEV.view); DEV.view=DEV_VIEWS[(i+1)%DEV_VIEWS.length].k; remember("gs.devview",DEV.view); devRenderMenu(); }},
     {t: DEV.big ? "Text size: large" : "Text size: normal", f:()=>{ DEV.big=!DEV.big; remember("gs.devbig",DEV.big?"1":""); devRenderMenu(); }},
     {t: "Scan a page", f:()=>devShow("scan")},
     {t: "Back to reading", f:()=>devShow(DEV.p!=null?"reader":"home")},
@@ -1142,7 +1151,9 @@ function devStopCam(){
 // the part of the camera picture the device "sees" (same shape as its screen)
 function devCrop(v){
   const A=4/3, vw=v.videoWidth, vh=v.videoHeight;
-  let w=Math.min(vw*.9, vh*.9*A), h=w/A;
+  const cm=(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).cm;
+  const across=Math.max(vw,vh);                         // the phone's long side spans ~22 cm at 20 cm up
+  let w=Math.min(across*cm/22, vw*.95, vh*.95*A), h=w/A;
   return {x:(vw-w)/2, y:(vh-h)/2, w, h};
 }
 function devFocus(c){
@@ -1156,7 +1167,8 @@ function devFocus(c){
   DEV.ready = s>60 && s>=Math.max(...DEV.sharp)*.7;
   devLed(DEV.ready?"green":"red");
   devEl("dLaser").classList.toggle("ready", DEV.ready);
-  devEl("dCamMsg").textContent = DEV.ready ? "Ready · press ●" : "Hold steady over the line…";
+  const vt=(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).t.split(" (")[0];
+  devEl("dCamMsg").textContent = (DEV.ready ? "Ready · press ●" : "Hold steady over the line…") + " · " + vt + " view";
 }
 async function devCapture(){
   const v=devEl("dVideo"); if(!v.videoWidth) return;
@@ -1166,12 +1178,15 @@ async function devCapture(){
   const c=prep(full, r.x, r.y, r.w, r.h), point={x:c.width/2, y:c.height/2};
   try{
     const data=await ocrCanvas(c,6), res=locate(data.text);
-    saveScan(c, data, res, "Device", point);
-    if(!res.picks.length){ devEl("dHome").innerHTML=`<div class="dbig">Couldn't find this page</div><div class="dhint">Get a little closer, hold steady, and press ● again</div>`; devShow("home"); devLed("red"); return; }
+    saveScan(c, data, res, "Device · "+DEV.view, point);
+    const nWords=(data.words||[]).filter(w=>matchKey(w.text)).length, nLines=(data.lines||[]).filter(l=>matchKey(l.text||"")).length;
+    DEV.saw=`saw ${nLines} line${nLines===1?"":"s"} · ${nWords} words`;
+    if(!res.picks.length || confLevel(res)==="Low" && nWords<6){ devEl("dHome").innerHTML=`<div class="dbig">Couldn't find this spot</div><div class="dhint">${DEV.saw} — not enough to be sure. Hold steady and press ● again</div>`; devShow("home"); devLed("red"); return; }
     const w=wordAt(data.words||[], point.x, point.y);
     let p = w ? alignWord(data.words, w, res) : null;
     if(p==null) p=segStart[res.picks[0][1]];      // place found, word unclear: start of that spot
     DEV.p=p; devShow("reader");
+    devEl("dSub").textContent = [devEl("dSub").textContent, DEV.saw+" · "+confLevel(res).toLowerCase()+" confidence"].filter(Boolean).join(" · ");
   }catch(e){ console.error(e); devShow(DEV.p!=null?"reader":"home"); }
 }
 
@@ -1241,7 +1256,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v14";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v15";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
@@ -1258,6 +1273,7 @@ async function boot(){
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
   renderHistList(); syncScans();
   DEV.mode = recall("gs.devmode")==="word" ? "word" : "phrase"; DEV.big = !!recall("gs.devbig");
+  if(DEV_VIEWS.some(x=>x.k===recall("gs.devview"))) DEV.view=recall("gs.devview");
   { const dp=+recall("gs.devp"); if(recall("gs.devp")!=null && tokSeg[dp]!=null) DEV.p=dp; }
   if(OPTS.devStart) openDevice();
   const saved = +recall("gs.last");

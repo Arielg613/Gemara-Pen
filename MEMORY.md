@@ -255,6 +255,15 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
   Menu: phrase/word stepping, go to a daf, text size, scan, exit to "scanner tools" (the old
   page). Keyboard on a computer: ← → space M. Shape of the device left for later.
 
+- 2026-11-05 — **Camera: see wide, translate at the laser (Ariel).** The camera should see
+  several lines (context = reliable place-finding); the laser only picks which word to
+  translate. So the real device needs a WIDE-ANGLE camera held a few cm above the page
+  (favours wand/magnifier over a thin pen touching the page). Simulator menu "Camera sees:"
+  Wide (default) / Wide wand ~8 cm / Pen ~5 cm / Pen on page ~3 cm, to test the worst case.
+  Text-only test (300 random spots each): wide ~96%, 8 cm 99%, 5 cm 97%, 3 cm 93%,
+  2 lines×3 words 89% right spot (perfect reading); ~2–7 points lower with 20% misreads.
+  Real OCR on a tiny crop is likely worse than that — needs real-page checks.
+
 ## Open questions
 - Licensing (settled for now: personal, non-commercial): Sefaria translations are mostly CC-BY or CC-BY-NC. Free to use for
   a non-commercial device. Selling one needs permission from Sefaria or the
