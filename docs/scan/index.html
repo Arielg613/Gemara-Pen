@@ -1327,7 +1327,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v19";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v20";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
