@@ -7,9 +7,9 @@ Output: docs/scan/<tractate>.json
     "tractate": "Berakhot",
     "en_source": "William Davidson Edition (Koren / Steinsaltz) via Sefaria",
     "segs":  [[daf, hebrew_with_nikud, english_html], ...],   # Gemara order
-    "gloss": {daf: {normalized_word: gloss}},                 # from lookup/<tractate>.json
     "abbr":  {bare_letters: full_form},                        # abbreviations used in this tractate
-    "chunks": {segment_index: [[n_words, meaning], ...]}       # from phrases/<tractate>.json
+    "chunks": {segment_index: [[n_words, meaning], ...]}       # from phrases/<tractate>.json:
+                                                              # Sefaria's bold English only
   }
 
 phrases/<tractate>.json holds per-spot meanings in phrase chunks, one list per
@@ -144,19 +144,17 @@ def main():
             h = clean_he(h)
             if h:
                 segs.append([daf_label(idx), h, clean_en(es[i]) if i < len(es) else ""])
-    gloss = json.load(open(f"lookup/{tractate}.json", encoding="utf-8"))["dafs"]
     out = {
         "tractate": tractate,
         "en_source": "William Davidson Edition (Koren / Steinsaltz) via Sefaria",
         "segs": segs,
-        "gloss": gloss,
         "abbr": abbreviations(segs),
         "chunks": load_chunks(tractate, segs),
     }
     path = f"docs/scan/{tractate}.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"{path}: {len(segs)} segments, {len(gloss)} dafs, {len(out['abbr'])} abbreviations, {len(out['chunks'])} segments with phrase meanings")
+    print(f"{path}: {len(segs)} segments, {len({s[0] for s in segs})} dafs, {len(out['abbr'])} abbreviations, {len(out['chunks'])} segments with phrase meanings")
 
 
 if __name__ == "__main__":

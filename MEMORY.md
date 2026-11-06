@@ -292,3 +292,11 @@ git history. To bring a file back: `git show 09baf13:<path>`, or
 - 2026-11-05 (phone) — Found the pre-cut work in git history and wrote the Project history section.
 - 2026-11-05 (phone) — Brainstormed the overall device vision and saved it above.
 - 2026-11-05 (phone) — Created this file and pointed `CLAUDE.md` at it.
+
+## 2026-11-06 — All English = Sefaria only (supersedes AI phrase meanings)
+- Ariel: every English word shown must come from Sefaria (William Davidson / Steinsaltz), so he can say "all translations are from Sefaria". Claude never writes English meanings.
+- How: `phrases/Berakhot.json` chunks = Hebrew word groups, each with an exact piece of that line's **bold** English (lined up by Claude agents, not written). `""` = no literal counterpart (app shows "—").
+- `phrase_tasks.py --check` enforces it mechanically: every meaning must be exact bold text, in order, no overlap.
+- Old one-meaning-per-word AI gloss removed from the app and data. Jastrow stays out.
+- Whole Berakhot (2a–64a) on the device; the 2a–7a test range is gone.
+- Translation levels (Settings switch, on): tap ● = Word → Phrase (its bold run) → Line (all bold) → Full (Sefaria with explanation). Hold ● = scan a new place. Menu: "Start each word at".

@@ -115,6 +115,13 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 .dscreen.big .dhe{font-size:46px}.dscreen.big .den{font-size:26px}
 .dline{display:none;position:absolute;inset:0;background:#04060a;color:#e8e4d8;font:13px/1.45 -apple-system,sans-serif;padding:10px 12px;overflow:auto;text-align:left;z-index:2}
 .dline.on{display:block}
+.den mark,.dline mark,.en mark,.gloss mark{background:#ffd54a;color:#111;border-radius:3px;padding:0 2px}
+.den.lv1{font-size:17px;font-weight:600}.den.lv2{font-size:14px;font-weight:500;line-height:1.4}
+.den.lv3{font:13px/1.45 -apple-system,sans-serif;text-align:left;max-height:62%;overflow:auto;align-self:stretch}
+.dscreen.big .den.lv1{font-size:21px}.dscreen.big .den.lv2{font-size:17px}.dscreen.big .den.lv3{font-size:15px}
+.dlv{font:11px -apple-system,sans-serif;color:#c9a24a;letter-spacing:1px;margin-top:5px}
+.lvrow{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}.lvrow button{font:13px -apple-system,sans-serif;padding:5px 10px;border-radius:14px;border:1px solid #c9a24a;background:none;color:inherit}
+.lvrow button.on{background:#c9a24a;color:#111}
 .dbig{font:600 19px -apple-system,sans-serif}
 .dhint{font:13px -apple-system,sans-serif;color:#8d94a3;margin-top:6px}
 .dcam{padding:0}
@@ -176,7 +183,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 <header>
   <div>
     <h1>Gemara Scanner</h1>
-    <div class="sub">Test build · Berakhot 2a–7a</div>
+    <div class="sub">Masechet Berakhot · Sefaria translation</div>
   </div>
   <div id="status">Loading…</div>
 </header>
@@ -227,7 +234,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 
   <div class="card">
     <b>Settings</b>
-    <label class="set"><input type="checkbox" id="optRange"> Only Berakhot 2a–7a (the dafs with phrase meanings) — reloads the app</label>
+    <label class="set"><input type="checkbox" id="optLevels"> Translation levels: on the device, tap ● to go from the word → its Sefaria phrase → the whole line → Sefaria's full explanation</label>
     <label class="set"><input type="checkbox" id="optDev"> Open the device simulator when the app starts</label>
     <label class="set"><input type="checkbox" id="optPen"> After a camera scan here, open the result in the device</label>
     <label class="set"><input type="checkbox" id="optHist"> Save recent scans (photo + what OCR read)</label>
@@ -256,6 +263,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
   <div id="sAbbr"></div>
   <div><span class="badge ai" id="sBadge">AI gloss</span></div>
   <div class="gloss" id="sGloss"></div>
+  <div class="lvrow" id="sLv"></div>
   <div class="small muted" id="sWhere"></div>
   <div style="margin-top:12px"><span class="badge off">Official · Sefaria (William Davidson / Steinsaltz)</span></div>
   <div class="en" id="sEn"></div>
@@ -267,11 +275,12 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
       <div class="dtop"><span class="dname">Gemara Scanner</span><span id="dLed" class="dled"></span></div>
       <div class="dscreen" id="dScreen">
         <div class="dstat"><span id="dLoc">Ready</span><span>offline ✓ ▮▮▮</span></div>
-        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan · Berakhot 2a–7a</div></div>
+        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan · all of Masechet Berakhot</div></div>
         <div id="dView" class="dpane">
           <div id="dHe" class="dhe"></div>
           <div id="dEn" class="den"></div>
           <div id="dSub" class="dsub"></div>
+          <div id="dLv" class="dlv"></div>
           <div id="dCtx" class="dctx"></div>
           <div id="dLine" class="dline"></div>
         </div>
@@ -281,13 +290,13 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
       </div>
       <div class="dbtns">
         <div><button id="dNext" aria-label="Next">◀</button><span>next</span></div>
-        <div><button id="dMid" aria-label="Scan or select">●</button><span>scan · hold: English</span></div>
+        <div><button id="dMid" aria-label="Scan or select">●</button><span id="dMidLbl">scan</span></div>
         <div><button id="dBack" aria-label="Back">▶</button><span>back</span></div>
       </div>
       <div class="dmenurow"><button id="dMenuBtn" aria-label="Menu">☰ menu</button></div>
     </div>
     <video id="dVideo" playsinline muted autoplay style="display:none"></video>
-    <div class="dnote">Simulator of the real device: only its screen and buttons. Keyboard: ← next · → back · space = ● · M = menu.</div>
+    <div class="dnote">Simulator of the real device: only its screen and buttons. Keyboard: ← next · → back · space = ● (hold = scan) · S = scan · M = menu.</div>
   </div>
 </div>
 
@@ -326,26 +335,18 @@ const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':
 const safeEn = s => esc(s).replace(/&lt;(\/?)b&gt;/g,"<$1b>");
 
 // ── Data + index ──────────────────────────────────────────────────────────
-let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new Map(), globalGloss=new Map();
+let D, segs, dafs=[], tokens=[], tokSeg=[], segStart=[], inv=new Map(), dels=new Map();
 let lastHits=new Set(), lastRange=null, lastOcr="", lastLoc=null, lastScan=null;
 
 // ── Settings (per device) ─────────────────────────────────────────────────
-const OPTS = {abbr:true, hist:true, send:true, pen:true, devStart:true, range:true};
+const OPTS = {abbr:true, hist:true, send:true, pen:true, devStart:true, levels:true};
 try{ Object.assign(OPTS, JSON.parse(localStorage.getItem("gs.opts")||"{}")); }catch(e){}
 const saveOpts = ()=>{ try{ localStorage.setItem("gs.opts", JSON.stringify(OPTS)); }catch(e){} };
 const remember = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 const recall = k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
 
-// Test range: only the dafs that have checked phrase meanings so far.
-const RANGE = ["2a","2b","3a","3b","4a","4b","5a","5b","6a","6b","7a"];
 async function loadData(){
   D = await (await fetch(TRACTATE + ".json")).json();
-  if(OPTS.range){
-    // keep only RANGE; phrase chunks are keyed by segment number, so renumber them
-    const keep=[], chunks={};
-    D.segs.forEach((s,i)=>{ if(RANGE.includes(s[0])){ if(D.chunks && D.chunks[i]) chunks[keep.length]=D.chunks[i]; keep.push(s); } });
-    D.segs=keep; D.chunks=chunks;
-  }
   segs = D.segs;
   segs.forEach((s,i)=>{
     if(!dafs.length || dafs[dafs.length-1] !== s[0]) dafs.push(s[0]);
@@ -364,7 +365,6 @@ async function loadData(){
       (dels.get(d) || dels.set(d,new Set()).get(d)).add(w);
     }
   }
-  for(const d of dafs) for(const [k,v] of Object.entries(D.gloss[d]||{})) if(!globalGloss.has(k)) globalGloss.set(k,v);
   const sel = $("dafSel");
   for(const d of dafs){ const o=document.createElement("option"); o.value=d; o.textContent=TRACTATE+" "+d; sel.appendChild(o); }
 }
@@ -526,30 +526,72 @@ function renderRange(a,b,hits){
   $("resultCard").style.display="";
 }
 
-function glossFor(word, segIdx){
-  const k = glossKey(word), daf = segs[segIdx][0], di = dafs.indexOf(daf);
-  const keys = [k, k.replace(/[״׳]/g,"")];
-  for(const off of [0,-1,1,-2,2,-3,3]){
-    const g = D.gloss[dafs[di+off]]; if(!g) continue;
-    for(const kk of keys) if(g[kk]) return g[kk];
-  }
-  for(const kk of keys) if(globalGloss.has(kk)) return globalGloss.get(kk);
-  return null;
-}
-
 // The phrase a word belongs to, with its meaning in this exact spot
 // (phrases/<tractate>.json): Sefaria's bold English, lined up with the Hebrew. No other source.
 function meaningAt(p, word){
   const s=tokSeg[p], ch=p!=null && (D.chunks||{})[s];
   if(ch){
-    let i=p-segStart[s], a=segStart[s];
+    let i=p-segStart[s], a=segStart[s], k=0;
     for(const [n,g] of ch){
-      if(i<n){ const ws=[]; for(let q=a;q<a+n;q++) ws.push(tokenWord(q).replace(/^[״"]+|[״"]+$/g,""));
-        return {text:ws.join(" "), gloss:g, spot:true, a, b:a+n-1}; }
-      i-=n; a+=n;
+      if(i<n) return {text:heRange(a,a+n-1), gloss:g, spot:true, a, b:a+n-1, k};
+      i-=n; a+=n; k++;
     }
   }
   return {text:word.replace(/^[״"]+|[״"]+$/g,""), gloss:"", spot:false, a:p, b:p};
+}
+
+function heRange(a,b){ const ws=[]; for(let q=a;q<=b;q++) ws.push(tokenWord(q).replace(/^[״"]+|[״"]+$/g,"")); return ws.join(" "); }
+
+// ── Translation levels, all Sefaria text: 0 word · 1 phrase · 2 line · 3 full ──
+// Where each chunk's meaning sits in the line's bold English. Same matching as
+// phrase_tasks.py --check, so a piece is always Sefaria's own words.
+const LEVELS=["Word","Phrase","Line","Full"];
+const pieceCache=new Map();
+const boldRuns = en => [...(en||"").matchAll(/<b>([\s\S]*?)<\/b>/g)].map(m=>m[1].replace(/<[^>]+>/g,"").split(/\s+/).filter(Boolean).join(" "));
+const isWordCh = c => c!=null && /[\p{L}\p{N}]/u.test(c);
+function segPieces(s){
+  if(pieceCache.has(s)) return pieceCache.get(s);
+  const runs=boldRuns(segs[s][2]), pieces=[], spans=[];
+  let r=0, pos=0, a=segStart[s];
+  for(const [n,g] of (D.chunks||{})[s]||[]){
+    let hit=null;
+    if(g){
+      const low=g.toLowerCase(), r0=r, p0=pos;
+      while(r<runs.length && !hit){
+        const t=runs[r].toLowerCase();
+        for(let i=t.indexOf(low,pos); i>=0; i=t.indexOf(low,i+1)){
+          const j=i+low.length;
+          if(!isWordCh(t[i-1]) && !isWordCh(t[j])){ hit={run:r, a:i, b:j}; pos=j; break; }
+        }
+        if(!hit){ r++; pos=0; }
+      }
+      if(!hit){ r=r0; pos=p0; }
+    }
+    pieces.push(hit); spans.push([a, a+n-1]); a+=n;
+  }
+  const v={runs, pieces, spans}; pieceCache.set(s,v); return v;
+}
+const markPiece = (t,h) => esc(t.slice(0,h.a))+"<mark>"+esc(t.slice(h.a,h.b))+"</mark>"+esc(t.slice(h.b));
+// {en: html, a, b, he} for word/phrase m (from meaningAt) at level lv
+function levelView(p, m, lv){
+  const s=tokSeg[p], base={en:m.gloss?esc(m.gloss):"—", a:m.a, b:m.b, he:m.text};
+  if(!lv) return base;
+  const {runs, pieces, spans}=segPieces(s), h=pieces[m.k];
+  if(lv===1){
+    if(!h) return {...base, en: runs.length ? "<i>Sefaria has no literal phrase for this word — tap ● for the whole line</i>" : "<i>No literal text here — tap ● for Sefaria's full explanation</i>"};
+    let a=m.a, b=m.b;
+    pieces.forEach((x,i)=>{ if(x && x.run===h.run){ a=Math.min(a,spans[i][0]); b=Math.max(b,spans[i][1]); } });
+    return {en:markPiece(runs[h.run], h), a, b, he:heRange(a,b)};
+  }
+  if(lv===2){
+    if(!runs.length) return {...base, en:"<i>No literal text in this line — tap ● for Sefaria's full explanation</i>"};
+    return {...base, en: runs.map((t,i)=> h && i===h.run ? markPiece(t,h) : esc(t)).join(" · ")};
+  }
+  const div=document.createElement("div");
+  div.innerHTML = segs[s][2] ? safeEn(segs[s][2]) : "<i>No official translation here.</i>";
+  const bs=div.querySelectorAll("b");
+  if(h && bs[h.run]) bs[h.run].innerHTML=markPiece(runs[h.run], h);
+  return {...base, en:div.innerHTML};
 }
 
 function showWord(span, word, segIdx){
@@ -560,6 +602,12 @@ function showWord(span, word, segIdx){
   else span.classList.add("sel");
   $("sWord").textContent = m.text;
   $("sGloss").textContent = m.gloss || "—";
+  $("sLv").innerHTML = "";
+  if(OPTS.levels && p!=null) LEVELS.forEach((name,lv)=>{
+    const bt=document.createElement("button"); bt.textContent=name; bt.className=lv?"":"on";
+    bt.onclick=()=>{ $("sGloss").innerHTML=levelView(p,m,lv).en; [...$("sLv").children].forEach((x,i)=>x.classList.toggle("on",i===lv)); };
+    $("sLv").appendChild(bt);
+  });
   $("sBadge").textContent = !m.spot ? "Not lined up with Sefaria yet · see the line below" : m.gloss ? "Sefaria · literal" : "Sefaria has no literal word here · see the line below";
   const lineNo = segIdx - segs.findIndex(s=>s[0]===segs[segIdx][0]) + 1;
   $("sWhere").textContent = `${TRACTATE} ${segs[segIdx][0]} · line ${lineNo}`;
@@ -1040,7 +1088,7 @@ const DEV_VIEWS = [
   {k:"pen",   t:"Pen (~5 cm, 4–6 words)", cm:5},
   {k:"close", t:"Pen on the page (~3 cm)", cm:3},
 ];
-const DEV = {view:"phone", state:"home", p:null, mode:"phrase", big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
+const DEV = {view:"phone", state:"home", p:null, mode:"phrase", lvl:0, lvl0:0, big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
 const devEl = id => document.getElementById(id);
 
 function openDevice(p){
@@ -1061,6 +1109,7 @@ function devShow(state){
   if(state==="scan"){ devEl("dCam").style.display=""; devStartCam(); }
   if(state==="menu"){ devEl("dMenu").style.display=""; devRenderMenu(); }
   if(state==="busy"){ devEl("dBusy").style.display=""; devLed("busy"); }
+  devEl("dMidLbl").textContent = state==="reader" ? (OPTS.levels ? "more · hold: scan" : "scan · hold: English") : state==="scan" ? "capture" : state==="menu" ? "choose" : "scan";
 }
 function devLed(c){ devEl("dLed").className = "dled" + (c ? " "+c : ""); }
 function devStatus(t){ devEl("dLoc").textContent=t; }
@@ -1073,13 +1122,18 @@ function devRender(){
     a=b=p; he=word.replace(/^[״"]+|[״"]+$/g,"");
     if(m.a!==m.b) sub="part of: "+m.text;
   }
+  const lv = OPTS.levels ? DEV.lvl : 0;
+  let enHtml = en ? esc(en) : "—";
+  if(lv){ const L=levelView(p, m, lv); enHtml=L.en; if(lv===1){ a=L.a; b=L.b; he=L.he; sub=""; } }
   const ab=OPTS.abbr && abbrFor(word);
   devEl("dHe").textContent=he;
-  devEl("dEn").textContent=en || "—";
+  devEl("dEn").innerHTML=enHtml;
+  devEl("dEn").className="den lv"+lv;
+  devEl("dLv").textContent = OPTS.levels ? LEVELS.map((x,i)=>i===lv?"●":"○").join(" ")+"  "+LEVELS[lv].toUpperCase()+(lv<3?" · tap ● for more":" · tap ● for the word") : "";
   devEl("dSub").textContent=[ab?"= "+ab:"", sub, m.spot?"":"not lined up yet"].filter(Boolean).join(" · ");
   devEl("dScreen").classList.toggle("big", DEV.big);
   const sec = s - segs.findIndex(x=>x[0]===segs[s][0]) + 1;
-  devStatus(`${TRACTATE} ${segs[s][0]} · sec ${sec} · ${DEV.mode==="word"?"word":"phrase"}`);
+  devStatus(`${TRACTATE} ${segs[s][0]} · sec ${sec} · ${DEV.mode==="word"?"word":"phrase"} by ${DEV.mode==="word"?"word":"phrase"}`);
   // context strip: the words around the current phrase, current one marked
   const from=Math.max(segStart[s], a-5), to=Math.min(segStart[s+1]-1, b+5);
   let html="";
@@ -1089,6 +1143,7 @@ function devRender(){
   lastLoc=s; remember("gs.last", s); remember("gs.devp", p);
 }
 function devStep(dir){
+  DEV.lvl=DEV.lvl0;
   if(DEV.mode==="word") DEV.p=Math.min(tokens.length-1, Math.max(0, DEV.p+dir));
   else{
     const m=meaningAt(DEV.p, tokenWord(DEV.p));
@@ -1103,6 +1158,7 @@ function devMenuItems(){
   if(DEV.menu==="daf") return null;
   return [
     {t: DEV.mode==="phrase" ? "Step: phrase by phrase" : "Step: word by word", f:()=>{ DEV.mode = DEV.mode==="phrase"?"word":"phrase"; remember("gs.devmode",DEV.mode); devRenderMenu(); }},
+    {t: "Start each word at: "+LEVELS[DEV.lvl0], f:()=>{ DEV.lvl0=(DEV.lvl0+1)%LEVELS.length; DEV.lvl=DEV.lvl0; remember("gs.devlvl",String(DEV.lvl0)); devRenderMenu(); }},
     {t: "Go to a daf…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
     {t: "Camera sees: "+(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).t, f:()=>{ const i=DEV_VIEWS.findIndex(x=>x.k===DEV.view); DEV.view=DEV_VIEWS[(i+1)%DEV_VIEWS.length].k; remember("gs.devview",DEV.view); devRenderMenu(); }},
     {t: DEV.big ? "Text size: large" : "Text size: normal", f:()=>{ DEV.big=!DEV.big; remember("gs.devbig",DEV.big?"1":""); devRenderMenu(); }},
@@ -1127,7 +1183,7 @@ function devMenuMove(dir){
   const n=devMenuItems().length; DEV.sel=(DEV.sel+dir+n)%n; devRenderMenu();
 }
 function devMenuSelect(){
-  if(DEV.menu==="daf"){ DEV.menu=null; const s=segs.findIndex(x=>x[0]===dafs[DEV.daf]); DEV.p=segStart[s]; devShow("reader"); return; }
+  if(DEV.menu==="daf"){ DEV.menu=null; const s=segs.findIndex(x=>x[0]===dafs[DEV.daf]); DEV.p=segStart[s]; DEV.lvl=DEV.lvl0; devShow("reader"); return; }
   devMenuItems()[DEV.sel].f();
 }
 
@@ -1192,12 +1248,12 @@ async function devCapture(){
     DEV.saw=`saw ${nLines} line${nLines===1?"":"s"} · ${nWords} words`;
     // few of the words read match the chosen spot → this page isn't one we have
     const matchShare = res.nOcr ? res.hitWords.size/res.nOcr : 0;
-    if(res.picks.length && OPTS.range && matchShare<.3 && nWords>=6){ devEl("dHome").innerHTML=`<div class="dbig">This page isn't in the test yet</div><div class="dhint">Only Berakhot 2a–7a for now · ${DEV.saw}</div>`; devShow("home"); devLed("red"); return; }
+    if(res.picks.length && matchShare<.3 && nWords>=6){ devEl("dHome").innerHTML=`<div class="dbig">This doesn't look like Berakhot</div><div class="dhint">Only Masechet Berakhot is on the device · ${DEV.saw}</div>`; devShow("home"); devLed("red"); return; }
     if(!res.picks.length || confLevel(res)==="Low" && nWords<6){ devEl("dHome").innerHTML=`<div class="dbig">Couldn't find this spot</div><div class="dhint">${DEV.saw} — not enough to be sure. Hold steady and press ● again</div>`; devShow("home"); devLed("red"); return; }
     const w=wordAt(data.words||[], point.x, point.y);
     let p = w ? alignWord(data.words, w, res) : null;
     if(p==null) p=segStart[res.picks[0][1]];      // place found, word unclear: start of that spot
-    DEV.p=p; devShow("reader");
+    DEV.p=p; DEV.lvl=DEV.lvl0; devShow("reader");
     devEl("dSub").textContent = [devEl("dSub").textContent, DEV.saw+" · "+confLevel(res).toLowerCase()+" confidence"].filter(Boolean).join(" · ");
   }catch(e){ console.error(e); devShow(DEV.p!=null?"reader":"home"); }
 }
@@ -1208,6 +1264,7 @@ function devBack(){ if(DEV.state==="reader") devStep(-1); else if(DEV.state==="m
 function devMid(){
   if(DEV.state==="scan") devCapture();
   else if(DEV.state==="menu") devMenuSelect();
+  else if(DEV.state==="reader" && OPTS.levels){ DEV.lvl=(DEV.lvl+1)%LEVELS.length; devRender(); }
   else if(DEV.state==="home" || DEV.state==="reader") devShow("scan");
 }
 function devMenuBtn(){
@@ -1215,7 +1272,8 @@ function devMenuBtn(){
   else { DEV.menu=null; DEV.sel=0; devShow("menu"); }
 }
 let devHoldT=null, devHeld=false;
-function devMidDown(){ devHeld=false; devHoldT=setTimeout(()=>{ if(DEV.state==="reader"){ devHeld=true; devEl("dLine").classList.add("on"); } }, 450); }
+// hold ● while reading: scan a new place (with levels on) or show the line in English
+function devMidDown(){ devHeld=false; devHoldT=setTimeout(()=>{ if(DEV.state==="reader"){ devHeld=true; if(OPTS.levels) devShow("scan"); else devEl("dLine").classList.add("on"); } }, 450); }
 function devMidUp(){ clearTimeout(devHoldT); if(devHeld){ devEl("dLine").classList.remove("on"); devHeld=false; } else devMid(); }
 devEl("dNext").onclick=devNext; devEl("dBack").onclick=devBack; devEl("dMenuBtn").onclick=devMenuBtn;
 devEl("dMid").onpointerdown=e=>{ e.preventDefault(); devMidDown(); };
@@ -1228,6 +1286,7 @@ document.addEventListener("keydown",e=>{
   else if(e.key==="ArrowRight"){ e.preventDefault(); devBack(); }
   else if(e.key===" " && !devKeyDown){ e.preventDefault(); devKeyDown=true; devMidDown(); }
   else if(e.key==="m"||e.key==="M") devMenuBtn();
+  else if(e.key==="s"||e.key==="S"){ if(DEV.state==="scan") devCapture(); else if(DEV.state!=="busy") devShow("scan"); }
 });
 document.addEventListener("keyup",e=>{ if(e.key===" " && devKeyDown){ devKeyDown=false; devMidUp(); } });
 $("btnDev").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]"); openDevice(sel?+sel.dataset.p:null); };
@@ -1272,7 +1331,9 @@ const CACHE_NAME = "gemara-scan-v18";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
-  $("optRange").checked=OPTS.range; $("optRange").onchange=e=>{ OPTS.range=e.target.checked; saveOpts(); location.reload(); };
+  $("optLevels").checked=OPTS.levels; $("optLevels").onchange=e=>{ OPTS.levels=e.target.checked; saveOpts(); };
+  // saved positions from the 2a–7a test build point at different words now
+  if(recall("gs.dv")!=="full"){ try{ localStorage.removeItem("gs.devp"); localStorage.removeItem("gs.last"); }catch(e){} remember("gs.dv","full"); }
   $("optDev").checked=OPTS.devStart; $("optDev").onchange=e=>{ OPTS.devStart=e.target.checked; saveOpts(); };
   $("optPen").checked=OPTS.pen; $("optPen").onchange=e=>{ OPTS.pen=e.target.checked; saveOpts(); };
   $("optSend").checked=OPTS.send;
@@ -1286,6 +1347,7 @@ async function boot(){
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
   renderHistList(); syncScans();
   DEV.mode = recall("gs.devmode")==="word" ? "word" : "phrase"; DEV.big = !!recall("gs.devbig");
+  DEV.lvl = DEV.lvl0 = Math.min(3, Math.max(0, +recall("gs.devlvl")||0));
   if(DEV_VIEWS.some(x=>x.k===recall("gs.devview"))) DEV.view=recall("gs.devview");
   { const dp=+recall("gs.devp"); if(recall("gs.devp")!=null && tokSeg[dp]!=null) DEV.p=dp; }
   if(OPTS.devStart) openDevice();
