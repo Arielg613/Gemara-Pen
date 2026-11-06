@@ -1,6 +1,6 @@
 // Offline cache for the Gemara Scanner. Bump CACHE when any file changes
 // (and CACHE_NAME in index.html with it).
-const CACHE = "gemara-scan-v21";
+const CACHE = "gemara-scan-v22";
 const FILES = [
   "./",
   "index.html",

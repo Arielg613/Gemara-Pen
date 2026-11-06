@@ -275,7 +275,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
       <div class="dtop"><span class="dname">Gemara Scanner</span><span id="dLed" class="dled"></span></div>
       <div class="dscreen" id="dScreen">
         <div class="dstat"><span id="dLoc">Ready</span><span>offline ✓ ▮▮▮</span></div>
-        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan · all of Masechet Berakhot</div></div>
+        <div id="dHome" class="dpane"><div class="dbig">Point at the line you're learning</div><div class="dhint">and press ● to scan · all of Masechet Berakhot<br>☰ menu → How to use</div></div>
         <div id="dView" class="dpane">
           <div id="dHe" class="dhe"></div>
           <div id="dEn" class="den"></div>
@@ -1155,8 +1155,9 @@ function devStep(dir){
 
 // ── menu (◀ ▶ move, ● select) ──
 function devMenuItems(){
-  if(DEV.menu==="daf") return null;
+  if(DEV.menu==="daf" || DEV.menu==="help") return null;
   return [
+    {t: "How to use", f:()=>{ DEV.menu="help"; devRenderMenu(); }},
     {t: DEV.mode==="phrase" ? "Step: phrase by phrase" : "Step: word by word", f:()=>{ DEV.mode = DEV.mode==="phrase"?"word":"phrase"; remember("gs.devmode",DEV.mode); devRenderMenu(); }},
     {t: "Start each word at: "+LEVELS[DEV.lvl0], f:()=>{ DEV.lvl0=(DEV.lvl0+1)%LEVELS.length; DEV.lvl=DEV.lvl0; remember("gs.devlvl",String(DEV.lvl0)); devRenderMenu(); }},
     {t: "Go to a daf…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
@@ -1173,6 +1174,15 @@ function devRenderMenu(){
     el.innerHTML=`<div class="dmt">Go to a daf</div><div class="ddaf">◀ ${TRACTATE} ${dafs[DEV.daf]} ▶</div><div class="dmh">◀ ▶ change · ● open</div>`;
     devStatus("Menu"); return;
   }
+  if(DEV.menu==="help"){
+    el.innerHTML=`<div class="dmt">How to use</div>
+      <div class="dmi">● hold over the page: scan, and it finds your place</div>
+      <div class="dmi">◀ ▶ step word by word or phrase by phrase</div>
+      <div class="dmi">● tap: more of the translation: Word → Phrase → Line → Full</div>
+      <div class="dmi">☰ menu: go to a daf, text size, start level</div>
+      <div class="dmh">All English is Sefaria's · ● or ☰ to go back</div>`;
+    devStatus("Help"); return;
+  }
   const items=devMenuItems();
   DEV.sel=Math.min(DEV.sel, items.length-1);
   el.innerHTML=`<div class="dmt">Menu</div>`+items.map((it,i)=>`<div class="dmi${i===DEV.sel?" on":""}">${esc(it.t)}</div>`).join("")+`<div class="dmh">◀ ▶ move · ● choose · ☰ close</div>`;
@@ -1180,9 +1190,11 @@ function devRenderMenu(){
 }
 function devMenuMove(dir){
   if(DEV.menu==="daf"){ DEV.daf=Math.min(dafs.length-1, Math.max(0, DEV.daf+dir)); devRenderMenu(); return; }
+  if(DEV.menu==="help") return;
   const n=devMenuItems().length; DEV.sel=(DEV.sel+dir+n)%n; devRenderMenu();
 }
 function devMenuSelect(){
+  if(DEV.menu==="help"){ DEV.menu=null; devRenderMenu(); return; }
   if(DEV.menu==="daf"){ DEV.menu=null; const s=segs.findIndex(x=>x[0]===dafs[DEV.daf]); DEV.p=segStart[s]; DEV.lvl=DEV.lvl0; devShow("reader"); return; }
   devMenuItems()[DEV.sel].f();
 }
@@ -1327,7 +1339,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v21";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v22";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;

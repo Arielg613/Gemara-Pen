@@ -164,3 +164,11 @@ regenerated after each new tractate to include it.
 Work goes to `main`. The branch `claude/gemara-pen-tractates-cbDu7` is stale —
 it sits 19 commits behind `main` and predates the Sonnet pipeline, the lookup
 indexes, and the web app. Do not build on it.
+
+
+## 2026-11-07 — Berakhot complete, Sefaria-only
+- All 125 dafs (2a–64a) lined up: 71,041 Hebrew words, 94.8% carry an exact piece of Sefaria's bold English, 5.2% "" (no literal counterpart; app shows "—").
+- Two passes per daf: line-up agents, then review agents (lost negations, wrong-word pieces, fillable blanks). Every part file passes `phrase_tasks.py --check`.
+- Source of truth: phrases/parts/Berakhot-<daf>.json → `merge_phrases.py Berakhot` → `build_scan_data.py Berakhot`.
+- App: whole tractate, translation levels (Word/Phrase/Line/Full), hold ● = scan, menu "How to use". Cache v22.
+- Known limits: Sefaria's bold order sometimes differs from the Hebrew, so some words stay blank; a piece can sit on a short word whose "not" lives in a neighbour only where no exact bold fix existed.
