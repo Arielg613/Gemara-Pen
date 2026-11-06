@@ -38,6 +38,35 @@ def sheet(data: dict, daf: str) -> str:
     return "\n".join(out)
 
 
+def bold_runs(en: str) -> list:
+    return [" ".join(re.sub(r"<[^>]+>", "", b).split()) for b in re.findall(r"<b>(.*?)</b>", en, re.S)]
+
+
+def sefaria_only(en: str, chunks: list) -> list:
+    """Every meaning must be copied exactly from Sefaria's bold English, in order, no overlap."""
+    runs, r, pos, bad = bold_runs(en), 0, 0, []
+    for c in chunks:
+        m = c[1] if len(c) > 1 and isinstance(c[1], str) else ""
+        if not m:
+            continue
+        found, r0, pos0 = False, r, pos
+        while r < len(runs):
+            for mt in re.finditer(re.escape(m), runs[r], re.I):
+                a, b = mt.start(), mt.end()
+                if a < pos:
+                    continue
+                if (a == 0 or not runs[r][a - 1].isalnum()) and (b == len(runs[r]) or not runs[r][b].isalnum()):
+                    pos, found = b, True
+                    break
+            if found:
+                break
+            r, pos = r + 1, 0
+        if not found:
+            bad.append(f"not Sefaria's bold text (or out of order): {m!r}")
+            r, pos = r0, pos0
+    return bad
+
+
 def check(data: dict, path: str) -> None:
     part = json.load(open(path, encoding="utf-8"))
     bad = []
@@ -52,8 +81,9 @@ def check(data: dict, path: str) -> None:
             if want != got:
                 bad.append(f"{daf} segment {k}: chunks cover {got} words, text has {want}")
             for c in chunks:
-                if not (isinstance(c[0], int) and c[0] > 0 and isinstance(c[1], str) and c[1].strip()):
+                if not (isinstance(c[0], int) and c[0] > 0 and isinstance(c[1], str)):
                     bad.append(f"{daf} segment {k}: bad chunk {c}")
+            bad += [f"{daf} segment {k}: {m}" for m in sefaria_only(segs[k][2], chunks)]
     print("\n".join(bad) if bad else f"OK {path}")
     sys.exit(1 if bad else 0)
 

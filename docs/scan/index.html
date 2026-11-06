@@ -241,12 +241,12 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     Tap a word to see its meaning.<br><br>
     <b>Point at a word:</b> in the camera, put the red laser dot on a word. With <b>Live</b> on, the meaning appears on
     screen by itself as you move. Or press Capture and it opens straight to that word.<br><br>
-    <span class="badge ai">Meaning here</span> the phrase you tapped and what it means in this exact spot, written by AI and checked against Sefaria's English (so far Berakhot 2a–7a and 46a).<br>
-    <span class="badge ai">General meaning</span> everywhere else for now: one meaning per word for the whole tractate, so it can be wrong for a particular spot.<br>
+    <span class="badge off">Sefaria</span> the word or phrase you tapped, with Sefaria's own literal (bold) English for it. Nothing is written by us; we only match Sefaria's words to the Hebrew. “—” means Sefaria has no literal word for it there, so read the full line.<br>
     <span class="badge off">Official</span> Sefaria's translation of the line (William Davidson / Steinsaltz). <b>Bold</b> = literal translation, plain = explanation.<br><br>
     <b>Offline:</b> once the top corner says <b>✓ Ready offline</b>, everything works with Wi-Fi off.
     On iPhone/iPad: Share → Add to Home Screen, then <b>open the Home Screen icon once with Wi-Fi on</b> and wait
-    for “✓ Ready offline” — the Home Screen app keeps its own separate copy from Safari.
+    for “✓ Ready offline” — the Home Screen app keeps its own separate copy from Safari.<br><br>
+    Translation: Sefaria, The William Davidson Talmud (Koren Noé Talmud, Rabbi Adin Even-Israel Steinsaltz), CC-BY-NC.
   </div>
 </main>
 
@@ -538,7 +538,7 @@ function glossFor(word, segIdx){
 }
 
 // The phrase a word belongs to, with its meaning in this exact spot
-// (phrases/<tractate>.json). Falls back to the old one-meaning-per-word gloss.
+// (phrases/<tractate>.json): Sefaria's bold English, lined up with the Hebrew. No other source.
 function meaningAt(p, word){
   const s=tokSeg[p], ch=p!=null && (D.chunks||{})[s];
   if(ch){
@@ -549,18 +549,18 @@ function meaningAt(p, word){
       i-=n; a+=n;
     }
   }
-  return {text:word.replace(/^[״"]+|[״"]+$/g,""), gloss:glossFor(word, s), spot:false, a:p, b:p};
+  return {text:word.replace(/^[״"]+|[״"]+$/g,""), gloss:"", spot:false, a:p, b:p};
 }
 
 function showWord(span, word, segIdx){
   document.querySelectorAll(".w.sel").forEach(x=>x.classList.remove("sel"));
   const p = span.dataset.p!=null ? +span.dataset.p : null;
-  const m = p!=null ? meaningAt(p, word) : {text:word, gloss:glossFor(word,segIdx), spot:false};
+  const m = p!=null ? meaningAt(p, word) : {text:word, gloss:"", spot:false};
   if(p!=null) for(let q=m.a;q<=m.b;q++){ const el=document.querySelector(`#text .w[data-p="${q}"]`); if(el) el.classList.add("sel"); }
   else span.classList.add("sel");
   $("sWord").textContent = m.text;
-  $("sGloss").textContent = m.gloss || "— not in dictionary yet —";
-  $("sBadge").textContent = m.spot ? "Meaning here · AI, checked against Sefaria" : "General meaning · AI, not checked for this spot";
+  $("sGloss").textContent = m.gloss || "—";
+  $("sBadge").textContent = !m.spot ? "Not lined up with Sefaria yet · see the line below" : m.gloss ? "Sefaria · literal" : "Sefaria has no literal word here · see the line below";
   const lineNo = segIdx - segs.findIndex(s=>s[0]===segs[segIdx][0]) + 1;
   $("sWhere").textContent = `${TRACTATE} ${segs[segIdx][0]} · line ${lineNo}`;
   $("sEn").innerHTML = segs[segIdx][2] ? safeEn(segs[segIdx][2]) : "<i>No official translation for this line.</i>";
@@ -970,7 +970,7 @@ function camCard(r){
   const ab=OPTS.abbr && abbrFor(r.word);
   el.innerHTML=`<div class="cm">${where} · tap for details</div><div class="cw">${esc(m.text)}</div>`+
     (ab?`<div class="cm" style="direction:rtl">${esc(ab)}</div>`:"")+
-    `<div class="cg">${esc(m.gloss||"— not in dictionary yet —")}</div>`;
+    `<div class="cg">${esc(m.gloss||"—")}</div>`;
 }
 
 // the original word (with nikud) at token position p
@@ -1071,13 +1071,12 @@ function devRender(){
   let a=m.a, b=m.b, he=m.text, en=m.gloss, sub="";
   if(DEV.mode==="word"){
     a=b=p; he=word.replace(/^[״"]+|[״"]+$/g,"");
-    if(m.spot && m.a!==m.b){ en=m.gloss; sub="part of: "+m.text; }
-    else en = m.spot ? m.gloss : (glossFor(word, s) || "—");
+    if(m.a!==m.b) sub="part of: "+m.text;
   }
   const ab=OPTS.abbr && abbrFor(word);
   devEl("dHe").textContent=he;
-  devEl("dEn").textContent=en || "— not in dictionary yet —";
-  devEl("dSub").textContent=[ab?"= "+ab:"", sub, m.spot?"":"general meaning"].filter(Boolean).join(" · ");
+  devEl("dEn").textContent=en || "—";
+  devEl("dSub").textContent=[ab?"= "+ab:"", sub, m.spot?"":"not lined up yet"].filter(Boolean).join(" · ");
   devEl("dScreen").classList.toggle("big", DEV.big);
   const sec = s - segs.findIndex(x=>x[0]===segs[s][0]) + 1;
   devStatus(`${TRACTATE} ${segs[s][0]} · sec ${sec} · ${DEV.mode==="word"?"word":"phrase"}`);
@@ -1269,7 +1268,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v17";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v18";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
