@@ -23,11 +23,8 @@ import json
 import os
 import re
 import sys
-import threading
 import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional
 from urllib.parse import quote
 
 import requests
@@ -74,25 +71,6 @@ TRACTATES = {
 
 GCS_BASE = "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli"
 BATCH_SIZE = 20   # words per Claude API call
-
-# How many batches to send at once. Requests are independent, so this is a
-# straight wall-clock division. Override with --workers N.
-WORKERS = int(os.environ.get("GEMARA_WORKERS", "8"))
-
-# Shared cross-tractate word cache — see seed_glossary.py.
-GLOSSARY_FILE = "glossary.json"
-
-# Model used for every translation call.
-MODEL = os.environ.get("GEMARA_MODEL", "claude-opus-5")
-
-# Reasoning effort: low | medium | high | xhigh | max.
-# Glossing single words is not deep-reasoning work; "medium" keeps quality
-# high without paying for long deliberation on 8,000 words.
-EFFORT = os.environ.get("GEMARA_EFFORT", "medium")
-
-# claude-opus-5 list price, USD per million tokens.
-PRICE_IN_PER_MTOK  = 5.00
-PRICE_OUT_PER_MTOK = 25.00
 
 
 # ── Utilities ──────────────────────────────────────────────────────────────
@@ -229,45 +207,6 @@ def build_corpus(tractate_names: list[str]) -> dict:
 
 
 # ── Stage 2: Refine with Claude ───────────────────────────────────────────
-
-# ── Shared glossary cache ──────────────────────────────────────────────────
-
-def load_glossary() -> dict:
-    """{word: {"t", "lang", "pos"}} for every word ever translated."""
-    if os.path.exists(GLOSSARY_FILE):
-        with open(GLOSSARY_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def save_glossary(glossary: dict) -> None:
-    with open(GLOSSARY_FILE, "w", encoding="utf-8") as f:
-        json.dump(glossary, f, ensure_ascii=False, indent=2, sort_keys=True)
-
-
-# ── Usage meter ────────────────────────────────────────────────────────────
-
-_usage_lock = threading.Lock()
-USAGE = {"in": 0, "out": 0, "calls": 0}
-
-
-def _record_usage(usage: dict) -> None:
-    with _usage_lock:
-        USAGE["in"]    += usage.get("input_tokens", 0)
-        USAGE["out"]   += usage.get("output_tokens", 0)
-        USAGE["calls"] += 1
-
-
-def usage_cost() -> float:
-    return (USAGE["in"]  / 1_000_000 * PRICE_IN_PER_MTOK +
-            USAGE["out"] / 1_000_000 * PRICE_OUT_PER_MTOK)
-
-
-def usage_report() -> str:
-    return (f"{USAGE['calls']} API calls — "
-            f"{USAGE['in']:,} in / {USAGE['out']:,} out tokens — "
-            f"${usage_cost():.2f}")
-
 
 SYSTEM_PROMPT = """You are a Talmudic Aramaic/Hebrew lexicographer.
 
@@ -409,28 +348,15 @@ def _claude_call(token: str, prompt: str, system: str = SYSTEM_PROMPT) -> str:
         API_URL,
         headers=headers,
         json={
-            "model":         MODEL,
-            # Opus 5 thinks by default and thinking tokens count against
-            # max_tokens — 1200 was sized for a non-thinking model and would
-            # truncate the JSON mid-object.
-            "max_tokens":    8000,
-            "output_config": {"effort": EFFORT},
-            "system":        system,
-            "messages":      [{"role": "user", "content": prompt}],
+            "model":      "claude-sonnet-4-6",
+            "max_tokens": 1200,
+            "system":     system,
+            "messages":   [{"role": "user", "content": prompt}],
         },
-        timeout=300,
+        timeout=60,
     )
     resp.raise_for_status()
-    body = resp.json()
-    _record_usage(body.get("usage", {}))
-
-    # With thinking on, content[0] is a thinking block — take the text block.
-    text = "".join(b.get("text", "") for b in body.get("content", [])
-                   if b.get("type") == "text").strip()
-    if not text:
-        raise ValueError(f"No text block in response (stop_reason="
-                         f"{body.get('stop_reason')})")
-    return text
+    return resp.json()["content"][0]["text"].strip()
 
 
 def _parse_response(raw: str, batch: list, word_contexts: dict,
@@ -491,66 +417,10 @@ def _call_with_backoff(token: str, prompt: str, system: str, batch_num: int) -> 
     raise RuntimeError("unreachable")
 
 
-def _run_batches(token: str, batches: list, contexts: dict, system: str,
-                 use_sefaria_check: bool, label: str, workers: int) -> tuple:
+def refine_with_claude(word_contexts: dict, existing: dict | None = None) -> tuple[dict, list]:
     """
-    Send every batch concurrently and merge the results.
-
-    Each worker owns its own results/failed/retry lists, which are merged on the
-    main thread as futures complete — nothing is mutated from two threads at once.
-    Returns (results, failed, needs_retry).
-    """
-    results: dict = {}
-    failed:  list = []
-    needs_retry: list = []
-    total_words = sum(len(b) for b in batches)
-    done_words  = 0
-
-    def work(idx_batch):
-        idx, batch = idx_batch
-        items_text = "\n\n".join(
-            build_retry_item(i + 1, w, contexts[w]) if not use_sefaria_check
-            else build_item(i + 1, w, contexts[w])
-            for i, w in enumerate(batch)
-        )
-        prompt = USER_TEMPLATE.format(items=items_text)
-        r: dict = {}
-        f: list = []
-        raw = _call_with_backoff(token, prompt, system, idx + 1)
-        retry = _parse_response(raw, batch, contexts, r, f,
-                                use_sefaria_check=use_sefaria_check)
-        return r, f, retry
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(work, ib): ib for ib in enumerate(batches)}
-        for fut in as_completed(futures):
-            idx, batch = futures[fut]
-            try:
-                r, f, retry = fut.result()
-                results.update(r)
-                failed.extend(f)
-                needs_retry.extend(retry)
-            except Exception as e:
-                # One dead batch must not kill the run — record and move on.
-                failed.extend(batch)
-                print(f"\n  Batch {idx + 1} failed: {e}")
-
-            done_words += len(batch)
-            pct = 100 * done_words // max(total_words, 1)
-            bar = "\u2588" * (pct // 5) + "\u2591" * (20 - pct // 5)
-            print(f"\r  {label} [{bar}] {pct}% — {done_words}/{total_words}"
-                  f"  (${usage_cost():.2f})", end="", flush=True)
-
-    print()
-    return results, failed, needs_retry
-
-
-def refine_with_claude(word_contexts: dict, existing: Optional[dict] = None,
-                       workers: int = None) -> tuple:
-    """
-    Translate words in batches, several batches in flight at once.
-    Validates each translation against Sefaria English; words that fail
-    validation are retried with a Sefaria-anchored prompt.
+    Translate words in batches. Validates each translation against Sefaria English.
+    Words that fail validation are retried with a Sefaria-anchored prompt.
     Pass existing={word: entry} to skip already-translated words (resume mode).
     Returns ({word: {"t": gloss, "lang": lang, "pos": pos}}, [failed_words]).
     """
@@ -558,8 +428,6 @@ def refine_with_claude(word_contexts: dict, existing: Optional[dict] = None,
     if not token:
         print("  No API token found — cannot refine.")
         return {}, list(word_contexts.keys())
-
-    workers = workers or WORKERS
 
     # Skip words already translated (resume mode)
     if existing:
@@ -572,27 +440,67 @@ def refine_with_claude(word_contexts: dict, existing: Optional[dict] = None,
         print("  Nothing to translate.")
         return {}, []
 
-    batches = [words[i: i + BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
-    print(f"\n  Translating {total} words with Claude Sonnet "
-          f"({len(batches)} batches, {workers} at a time)…")
+    print(f"\n  Translating {total} words with Claude Sonnet ({(total // BATCH_SIZE) + 1} batches)…")
 
-    results, failed, all_needs_retry = _run_batches(
-        token, batches, word_contexts, SYSTEM_PROMPT,
-        use_sefaria_check=True, label="", workers=workers)
+    results: dict[str, dict] = {}
+    failed:  list[str]       = []
+    all_needs_retry: list[str] = []
 
-    # Retry words that failed the Sefaria consistency check
+    for batch_start in range(0, total, BATCH_SIZE):
+        batch = words[batch_start: batch_start + BATCH_SIZE]
+        items_text = "\n\n".join(
+            build_item(i + 1, w, word_contexts[w])
+            for i, w in enumerate(batch)
+        )
+        prompt = USER_TEMPLATE.format(items=items_text)
+        batch_num = batch_start // BATCH_SIZE + 1
+
+        try:
+            raw = _call_with_backoff(token, prompt, SYSTEM_PROMPT, batch_num)
+            needs_retry = _parse_response(raw, batch, word_contexts, results, failed)
+            all_needs_retry.extend(needs_retry)
+        except Exception as e:
+            print(f"\n  Batch {batch_num} failed: {e}")
+            failed.extend(batch)
+
+        # Pace requests to stay under rate limit
+        time.sleep(0.3)
+
+        done = batch_start + len(batch)
+        pct  = 100 * done // total
+        bar  = "█" * (pct // 5) + "░" * (20 - pct // 5)
+        print(f"\r  [{bar}] {pct}% — {done}/{total}", end="", flush=True)
+
+    print()
+
+    # Retry words that failed Sefaria consistency check
     if all_needs_retry:
         print(f"\n  Sefaria validation retry: {len(all_needs_retry)} words…")
         retry_contexts = {w: word_contexts[w] for w in all_needs_retry}
-        retry_batches  = [all_needs_retry[i: i + BATCH_SIZE]
-                          for i in range(0, len(all_needs_retry), BATCH_SIZE)]
 
-        retry_results, retry_failed, _ = _run_batches(
-            token, retry_batches, retry_contexts, SEFARIA_RETRY_PROMPT,
-            use_sefaria_check=False, label="Retry", workers=workers)
+        for batch_start in range(0, len(all_needs_retry), BATCH_SIZE):
+            batch = all_needs_retry[batch_start: batch_start + BATCH_SIZE]
+            items_text = "\n\n".join(
+                build_retry_item(i + 1, w, retry_contexts[w])
+                for i, w in enumerate(batch)
+            )
+            prompt = USER_TEMPLATE.format(items=items_text)
+            batch_num = batch_start // BATCH_SIZE + 1
 
-        results.update(retry_results)
-        failed.extend(retry_failed)
+            try:
+                raw = _call_with_backoff(token, prompt, SEFARIA_RETRY_PROMPT, batch_num)
+                _parse_response(raw, batch, retry_contexts, results, failed,
+                                use_sefaria_check=False)
+            except Exception as e:
+                failed.extend(batch)
+
+            time.sleep(0.3)
+
+            done = batch_start + len(batch)
+            pct  = 100 * done // len(all_needs_retry)
+            bar  = "█" * (pct // 5) + "░" * (20 - pct // 5)
+            print(f"\r  Retry [{bar}] {pct}%", end="", flush=True)
+        print()
 
     return results, failed
 
