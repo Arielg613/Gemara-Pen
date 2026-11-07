@@ -1,12 +1,13 @@
 // Offline cache for the Gemara Scanner. Bump CACHE when any file changes
 // (and CACHE_NAME in index.html with it).
-const CACHE = "gemara-scan-v25";
+const CACHE = "gemara-scan-v26";
 const FILES = [
   "./",
   "index.html",
   "manifest.json",
   "icon.png",
   "Berakhot.json",
+  "KitzurYY.json",
   "vendor/tesseract.min.js",
   "vendor/worker.min.js",
   "vendor/tesseract-core-lstm.wasm.js",

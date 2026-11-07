@@ -172,3 +172,10 @@ indexes, and the web app. Do not build on it.
 - Source of truth: phrases/parts/Berakhot-<daf>.json → `merge_phrases.py Berakhot` → `build_scan_data.py Berakhot`.
 - App: whole tractate, translation levels (Word/Phrase/Line/Full), hold ● = scan, menu "How to use". Cache v22.
 - Known limits: Sefaria's bold order sometimes differs from the Hebrew, so some words stay blank; a piece can sit on a short word whose "not" lives in a neighbour only where no exact bold fix existed.
+
+## 2026-11-07 — Kitzur Yalkut Yosef on the scanner
+- Simanim 1–58 (first five topics, 57,083 words, 1,111 seifim) from ~/hotg-work/data/yalkut/books.
+- `kyy_tasks.py` (show / --check), word groups in `phrases/kyy/chNN.json` (Claude's English, AI-labelled), `build_kyy.py` → docs/scan/KitzurYY.json.
+- App loads both books into one index; YY seifim labelled "YY Siman N". Levels for YY: Word → Sentence → Whole seif.
+- Gemara levels: Word → Filled in (Sefaria's added words gray) → Sefaria; chosen level stays as you step. AF/AE camera lock.
+- Perek 1–2 (2a–17b) blanks refilled with out-of-order Sefaria pieces (checker allows flipped order). Rest of Berakhot not refilled — Ariel wants to study perek 1–2 first.

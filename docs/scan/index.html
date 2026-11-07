@@ -186,7 +186,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 <header>
   <div>
     <h1>Gemara Scanner</h1>
-    <div class="sub">Masechet Berakhot · Sefaria translation</div>
+    <div class="sub">Masechet Berakhot (Sefaria translation) · Kitzur Yalkut Yosef 1–58 (AI translation)</div>
   </div>
   <div id="status">Loading…</div>
 </header>
@@ -256,7 +256,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
     <b>Offline:</b> once the top corner says <b>✓ Ready offline</b>, everything works with Wi-Fi off.
     On iPhone/iPad: Share → Add to Home Screen, then <b>open the Home Screen icon once with Wi-Fi on</b> and wait
     for “✓ Ready offline” — the Home Screen app keeps its own separate copy from Safari.<br><br>
-    Translation: Sefaria, The William Davidson Talmud (Koren Noé Talmud, Rabbi Adin Even-Israel Steinsaltz), CC-BY-NC.
+    Translation: Sefaria, The William Davidson Talmud (Koren Noé Talmud, Rabbi Adin Even-Israel Steinsaltz), CC-BY-NC. Kitzur Yalkut Yosef English: our own AI translation, not affiliated with Yalkut Yosef.
   </div>
 </main>
 
@@ -326,6 +326,13 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 "use strict";
 const $ = id => document.getElementById(id);
 const TRACTATE = "Berakhot";
+// Two books on one device: Berakhot (Sefaria) and Kitzur Yalkut Yosef simanim 1–58 (our AI English).
+// Yalkut Yosef seifim are labelled "YY Siman 4"; a scan searches both books at once.
+const isYY = lbl => String(lbl).startsWith("YY ");
+const placeName = lbl => isYY(lbl) ? "Kitzur Yalkut Yosef "+lbl.slice(3) : TRACTATE+" "+lbl;
+const segIsYY = i => isYY(segs[i][0]);
+// "line 3" in Berakhot, "seif 12" in Yalkut Yosef
+const lineName = i => segIsYY(i) ? "seif "+(segs[i][3]||"") : "line "+(i - segs.findIndex(x=>x[0]===segs[i][0]) + 1);
 
 // ── Normalization (matches build_lookup_index.py) ─────────────────────────
 const SOFIT = {"ך":"כ","ם":"מ","ן":"נ","ף":"פ","ץ":"צ"};
@@ -351,6 +358,11 @@ const recall = k=>{ try{ return localStorage.getItem(k); }catch(e){ return null;
 
 async function loadData(){
   D = await (await fetch(TRACTATE + ".json")).json();
+  try{   // second book: append its seifim after Berakhot, shifting its chunk indexes
+    const Y = await (await fetch("KitzurYY.json")).json(), off = D.segs.length;
+    D.segs = D.segs.concat(Y.segs);
+    for(const [k,v] of Object.entries(Y.chunks||{})) D.chunks[String(+k+off)] = v;
+  }catch(e){}
   segs = D.segs;
   segs.forEach((s,i)=>{
     if(!dafs.length || dafs[dafs.length-1] !== s[0]) dafs.push(s[0]);
@@ -370,7 +382,7 @@ async function loadData(){
     }
   }
   const sel = $("dafSel");
-  for(const d of dafs){ const o=document.createElement("option"); o.value=d; o.textContent=TRACTATE+" "+d; sel.appendChild(o); }
+  for(const d of dafs){ const o=document.createElement("option"); o.value=d; o.textContent=placeName(d); sel.appendChild(o); }
 }
 
 const idf = w => Math.log((tokens.length+1) / ((inv.get(w)||[]).length+1));
@@ -551,6 +563,8 @@ function heRange(a,b){ const ws=[]; for(let q=a;q<=b;q++) ws.push(tokenWord(q).r
 // phrase_tasks.py --check: in order first, else an unused spot earlier in the
 // line (Sefaria's English order is sometimes flipped against the Hebrew).
 const LEVELS=["Word","Filled in","Sefaria"];
+// Yalkut Yosef has no bold/plain split: its levels are the word, its sentence, the whole seif
+const levelName = (lv, s) => segIsYY(s) ? ["Word","Sentence","Whole seif"][lv] : LEVELS[lv];
 const pieceCache=new Map();
 const boldRuns = en => [...(en||"").matchAll(/<b>([\s\S]*?)<\/b>/g)].map(m=>m[1].replace(/<[^>]+>/g,"").split(/\s+/).filter(Boolean).join(" "));
 const isWordCh = c => c!=null && /[\p{L}\p{N}]/u.test(c);
@@ -612,6 +626,13 @@ function levelView(p, m, lv){
   const ws=segWords(s, h);
   if(!ws.length) return {...base, en:"<i>No official translation for this line.</i>"};
   if(lv===2) return {...base, en:wordsHtml(ws, false)};
+  if(segIsYY(s)){   // the English sentence at about the same place in the seif as the word
+    const c=Math.round((ws.length-1)*(m.a-segStart[s])/Math.max(1, segStart[s+1]-segStart[s]-1));
+    let a=c; while(a>0 && !endsSentence(ws[a-1].w)) a--;
+    let b=c; while(b<ws.length-1 && !endsSentence(ws[b].w)) b++;
+    const lo=Math.max(a, c-25), hi=Math.min(b, c+25);
+    return {...base, en:(lo>0?"… ":"")+wordsHtml(ws.slice(lo, hi+1), false)+(hi<ws.length-1?" …":"")};
+  }
   // filled in: the sentence around the word, Sefaria's added words in gray
   let c=ws.findIndex(x=>x.mark), e=ws.length-1-[...ws].reverse().findIndex(x=>x.mark);
   if(c<0){   // no English of its own: centre on the nearest lined-up word before it (or after)
@@ -639,13 +660,12 @@ function showWord(span, word, segIdx){
   $("sGloss").innerHTML = p!=null ? levelView(p,m,lv).en : "—";
   $("sLv").innerHTML = "";
   if(OPTS.levels && p!=null) LEVELS.forEach((name,i)=>{
-    const bt=document.createElement("button"); bt.textContent=name; bt.className=i===lv?"on":"";
+    const bt=document.createElement("button"); bt.textContent=levelName(i, segIdx); bt.className=i===lv?"on":"";
     bt.onclick=()=>{ sheetLv=i; remember("gs.sheetlv",String(i)); $("sGloss").innerHTML=levelView(p,m,i).en; [...$("sLv").children].forEach((x,j)=>x.classList.toggle("on",j===i)); };
     $("sLv").appendChild(bt);
   });
-  $("sBadge").textContent = !m.spot ? "Not lined up with Sefaria yet · see the line below" : m.gloss ? "Sefaria · literal" : "Sefaria has no word of its own here · tap Filled in to see the sentence";
-  const lineNo = segIdx - segs.findIndex(s=>s[0]===segs[segIdx][0]) + 1;
-  $("sWhere").textContent = `${TRACTATE} ${segs[segIdx][0]} · line ${lineNo}`;
+  $("sBadge").textContent = segIsYY(segIdx) ? (m.spot ? "AI translation · not affiliated with Yalkut Yosef" : "Not translated word by word yet · see the seif below") : !m.spot ? "Not lined up with Sefaria yet · see the line below" : m.gloss ? "Sefaria · literal" : "Sefaria has no word of its own here · tap Filled in to see the sentence";
+  $("sWhere").textContent = `${placeName(segs[segIdx][0])} · ${lineName(segIdx)}`;
   $("sEn").innerHTML = segs[segIdx][2] ? safeEn(segs[segIdx][2]) : "<i>No official translation for this line.</i>";
   const ab = OPTS.abbr && abbrFor(word);
   $("sAbbr").style.display = ab ? "block" : "none";
@@ -674,7 +694,7 @@ function showResult(res){
   lastHits = res.hitWords;
   const go = (i)=>{
     lastLoc = i; remember("gs.last", i);
-    $("where").textContent = `📍 ${TRACTATE} ${segs[i][0]}`;
+    $("where").textContent = `📍 ${placeName(segs[i][0])}`;
     renderRange(Math.max(0,i-2), Math.min(segs.length-1,i+2), lastHits);
     [...$("alts").children].forEach(c=>c.classList.toggle("on", +c.dataset.i===i));
   };
@@ -682,7 +702,7 @@ function showResult(res){
   $("alts").innerHTML="";
   res.picks.forEach(([,i],n)=>{
     const c=document.createElement("span"); c.className="chip"; c.dataset.i=i;
-    c.textContent = (n===0?"Best: ":"") + TRACTATE+" "+segs[i][0]; c.onclick=()=>go(i);
+    c.textContent = (n===0?"Best: ":"") + placeName(segs[i][0]); c.onclick=()=>go(i);
     $("alts").appendChild(c);
   });
   go(best[1]);
@@ -699,7 +719,7 @@ function showDaf(d, why){
   const a=segs.findIndex(s=>s[0]===d); if(a<0) return;
   let b=a; while(b+1<segs.length && segs[b+1][0]===d) b++;
   lastHits=new Set(); lastLoc=a; remember("gs.last", a);
-  $("where").textContent=`${TRACTATE} ${d}`; $("conf").textContent=why; $("alts").innerHTML="";
+  $("where").textContent=placeName(d); $("conf").textContent=why; $("alts").innerHTML="";
   $("ocrRaw").textContent=""; $("hitsCard").style.display="none"; $("dafSel").value=d; renderRange(a,b,null);
 }
 $("dafSel").onchange=e=>{ if(e.target.value) showDaf(e.target.value, "Chosen by hand"); };
@@ -710,11 +730,11 @@ $("q").oninput=e=>{
   const k=matchKey(e.target.value.trim()); const card=$("hitsCard");
   if(k.length<2){ card.style.display="none"; return; }
   const ps=(inv.get(k)||[]).slice(0,40);
-  card.innerHTML = `<div class="muted small">${(inv.get(k)||[]).length} times in ${TRACTATE}${ps.length<(inv.get(k)||[]).length?" (first 40)":""}</div>`;
+  card.innerHTML = `<div class="muted small">${(inv.get(k)||[]).length} times on the device${ps.length<(inv.get(k)||[]).length?" (first 40)":""}</div>`;
   for(const p of ps){
     const s=tokSeg[p]; const a=document.createElement("a");
-    a.innerHTML=`<span class="small muted">${TRACTATE} ${segs[s][0]}</span><div class="snip">${esc(segs[s][1].slice(0,90))}…</div>`;
-    a.onclick=()=>{ lastHits=new Set([k]); $("where").textContent=`${TRACTATE} ${segs[s][0]}`; $("conf").textContent="From search"; $("alts").innerHTML=""; renderRange(Math.max(0,s-1),Math.min(segs.length-1,s+1),lastHits); $("resultCard").scrollIntoView({behavior:"smooth"}); };
+    a.innerHTML=`<span class="small muted">${placeName(segs[s][0])}</span><div class="snip">${esc(segs[s][1].slice(0,90))}…</div>`;
+    a.onclick=()=>{ lastHits=new Set([k]); $("where").textContent=placeName(segs[s][0]); $("conf").textContent="From search"; $("alts").innerHTML=""; renderRange(Math.max(0,s-1),Math.min(segs.length-1,s+1),lastHits); $("resultCard").scrollIntoView({behavior:"smooth"}); };
     card.appendChild(a);
   }
   if(!ps.length) card.innerHTML+=`<div class="muted">Not found.</div>`;
@@ -960,7 +980,7 @@ async function renderHistList(){
   el.innerHTML="";
   for(const r of all){
     const s=cmpScore(r.cmp), a=document.createElement("a"); a.className="hrow";
-    a.innerHTML=`<img src="${r.img}" alt=""><div><div><b>${r.daf?TRACTATE+" "+esc(r.daf):"Not found"}</b> · ${esc(r.conf)}</div>
+    a.innerHTML=`<img src="${r.img}" alt=""><div><div><b>${r.daf?esc(placeName(r.daf)):"Not found"}</b> · ${esc(r.conf)}</div>
       <div class="small muted">${new Date(r.id).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} · ${esc(r.how)}${OPTS.send?(r.sent?" · sent to Claude ✓":" · waiting to send"):""}</div>
       <div class="small">${r.daf?`OCR got <b>${s.read}%</b> of words exactly right (${r.cmp.exact} of ${s.real})`:`Read ${r.cmp.nOcr} words, no match`}</div></div>`;
     a.onclick=()=>openScan(r);
@@ -992,7 +1012,7 @@ function openScan(r){
     <div class="hpic"><img class="himg" id="hImg" src="${r.img}" alt="Scanned picture">${overlay(r)}</div>
     ${r.pick?`<div class="small" style="margin-top:6px">Red dot = where you aimed · blue box = the word the scanner picked:
       <b dir="rtl">${esc(r.pick.word||"none")}</b>${r.pick.ocr?` <span class="muted">(OCR read “${esc(r.pick.ocr)}”)</span>`:""}</div>`:`<div class="small muted" style="margin-top:6px">Blue boxes = every word the OCR found.</div>`}
-    <div style="margin-top:10px"><b style="font-size:18px">${r.daf?"📍 "+TRACTATE+" "+esc(r.daf):"Couldn't find this spot"}</b>
+    <div style="margin-top:10px"><b style="font-size:18px">${r.daf?"📍 "+esc(placeName(r.daf)):"Couldn't find this spot"}</b>
       <span class="muted small"> · confidence ${esc(r.conf)}${r.ms?` · ${(r.ms/1000).toFixed(1)} s`:""} · ${new Date(r.id).toLocaleString()}</span></div>
     ${r.daf?`<div class="stats">
       <div><b>${s.read}%</b><span>words exactly right</span></div>
@@ -1018,7 +1038,7 @@ function openScan(r){
     const view=seen=>{ $("hImg").src=seen?r.seen:r.img; $("vSeen").classList.toggle("on",seen); $("vPhoto").classList.toggle("on",!seen); };
     $("vPhoto").onclick=()=>view(false); $("vSeen").onclick=()=>view(true);
   }
-  if(r.seg!=null) $("histGo").onclick=()=>{ $("hist").classList.remove("open"); lastHits=new Set(); $("where").textContent=`📍 ${TRACTATE} ${r.daf}`; $("conf").textContent="From a past scan"; $("alts").innerHTML=""; renderRange(Math.max(0,r.seg-2),Math.min(segs.length-1,r.seg+2),null); $("resultCard").scrollIntoView({behavior:"smooth"}); };
+  if(r.seg!=null) $("histGo").onclick=()=>{ $("hist").classList.remove("open"); lastHits=new Set(); $("where").textContent=`📍 ${placeName(r.daf)}`; $("conf").textContent="From a past scan"; $("alts").innerHTML=""; renderRange(Math.max(0,r.seg-2),Math.min(segs.length-1,r.seg+2),null); $("resultCard").scrollIntoView({behavior:"smooth"}); };
   $("histDel").onclick=async()=>{ try{ await store("readwrite", s=>s.delete(r.id)); }catch(e){} $("hist").classList.remove("open"); renderHistList(); };
 }
 
@@ -1080,7 +1100,7 @@ function camCard(r){
   liveLast=r;
   const el=$("camCard");
   if(!r){ el.innerHTML=`<div class="cm">Looking… hold the iPad steady over the main text</div>`; return; }
-  const where=`📍 ${TRACTATE} ${segs[r.seg][0]}`;
+  const where=`📍 ${placeName(segs[r.seg][0])}`;
   if(r.p==null){ el.innerHTML=`<div class="cm">${where} · move the red dot onto a word</div>`; return; }
   const m=meaningAt(r.p, r.word);
   const ab=OPTS.abbr && abbrFor(r.word);
@@ -1198,11 +1218,11 @@ function devRender(){
   devEl("dHe").textContent=he;
   devEl("dEn").innerHTML=enHtml;
   devEl("dEn").className="den lv"+lv;
-  devEl("dLv").textContent = OPTS.levels ? LEVELS.map((x,i)=>i===lv?"●":"○").join(" ")+"  "+LEVELS[lv].toUpperCase()+(lv<LEVELS.length-1?" · tap ● for more":" · tap ● for the word") : "";
+  devEl("dLv").textContent = OPTS.levels ? LEVELS.map((x,i)=>i===lv?"●":"○").join(" ")+"  "+levelName(lv, s).toUpperCase()+(lv<LEVELS.length-1?" · tap ● for more":" · tap ● for the word") : "";
   devEl("dSub").textContent=[ab?"= "+ab:"", sub, m.spot?"":"not lined up yet"].filter(Boolean).join(" · ");
   devEl("dScreen").classList.toggle("big", DEV.big);
   const sec = s - segs.findIndex(x=>x[0]===segs[s][0]) + 1;
-  devStatus(`${TRACTATE} ${segs[s][0]} · sec ${sec} · ${DEV.mode==="word"?"word":"phrase"} by ${DEV.mode==="word"?"word":"phrase"}`);
+  devStatus(`${placeName(segs[s][0])} · ${segIsYY(s) ? lineName(s) : "sec "+sec} · ${DEV.mode==="word"?"word":"phrase"} by ${DEV.mode==="word"?"word":"phrase"}`);
   // context strip: the words around the current phrase, current one marked
   const from=Math.max(segStart[s], a-5), to=Math.min(segStart[s+1]-1, b+5);
   let html="";
@@ -1227,7 +1247,7 @@ function devMenuItems(){
   return [
     {t: "How to use", f:()=>{ DEV.menu="help"; devRenderMenu(); }},
     {t: DEV.mode==="phrase" ? "Step: phrase by phrase" : "Step: word by word", f:()=>{ DEV.mode = DEV.mode==="phrase"?"word":"phrase"; remember("gs.devmode",DEV.mode); devRenderMenu(); }},
-    {t: "Go to a daf…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
+    {t: "Go to a daf or siman…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
     {t: "Camera sees: "+(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).t, f:()=>{ const i=DEV_VIEWS.findIndex(x=>x.k===DEV.view); DEV.view=DEV_VIEWS[(i+1)%DEV_VIEWS.length].k; remember("gs.devview",DEV.view); devRenderMenu(); }},
     {t: "AF/AE lock: "+(afLock?"on":"off"), f:async()=>{ const t=DEV.stream && DEV.stream.getVideoTracks()[0]; afDist=null; await setAfLock(!afLock, t); devRenderMenu(); }},
     {t: DEV.big ? "Text size: large" : "Text size: normal", f:()=>{ DEV.big=!DEV.big; remember("gs.devbig",DEV.big?"1":""); devRenderMenu(); }},
@@ -1239,7 +1259,7 @@ function devMenuItems(){
 function devRenderMenu(){
   const el=devEl("dMenu");
   if(DEV.menu==="daf"){
-    el.innerHTML=`<div class="dmt">Go to a daf</div><div class="ddaf">◀ ${TRACTATE} ${dafs[DEV.daf]} ▶</div><div class="dmh">◀ ▶ change · ● open</div>`;
+    el.innerHTML=`<div class="dmt">Go to a daf or siman</div><div class="ddaf">◀ ${placeName(dafs[DEV.daf])} ▶</div><div class="dmh">◀ ▶ change · ● open</div>`;
     devStatus("Menu"); return;
   }
   if(DEV.menu==="help"){
@@ -1330,7 +1350,7 @@ async function devCapture(){
     DEV.saw=`saw ${nLines} line${nLines===1?"":"s"} · ${nWords} words`;
     // few of the words read match the chosen spot → this page isn't one we have
     const matchShare = res.nOcr ? res.hitWords.size/res.nOcr : 0;
-    if(res.picks.length && matchShare<.3 && nWords>=6){ devEl("dHome").innerHTML=`<div class="dbig">This doesn't look like Berakhot</div><div class="dhint">Only Masechet Berakhot is on the device · ${DEV.saw}</div>`; devShow("home"); devLed("red"); return; }
+    if(res.picks.length && matchShare<.3 && nWords>=6){ devEl("dHome").innerHTML=`<div class="dbig">This doesn't look like Berakhot or Yalkut Yosef</div><div class="dhint">On the device: Masechet Berakhot and Kitzur Yalkut Yosef simanim 1–58 · ${DEV.saw}</div>`; devShow("home"); devLed("red"); return; }
     if(!res.picks.length || confLevel(res)==="Low" && nWords<6){ devEl("dHome").innerHTML=`<div class="dbig">Couldn't find this spot</div><div class="dhint">${DEV.saw} — not enough to be sure. Hold steady and press ● again</div>`; devShow("home"); devLed("red"); return; }
     const w=wordAt(data.words||[], point.x, point.y);
     let p = w ? alignWord(data.words, w, res) : null;
@@ -1409,7 +1429,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v25";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v26";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
@@ -1450,7 +1470,7 @@ async function boot(){
   }catch(e){ console.warn(e); offlineState(false, "Couldn't save for offline: " + e.message); }
 }
 function offlineState(ok, msg){
-  $("status").textContent = (ok ? "✓ Ready offline · " : "Not offline yet · ") + `${TRACTATE}, ${dafs.length} dafs`;
+  $("status").textContent = (ok ? "✓ Ready offline · " : "Not offline yet · ") + `${TRACTATE}, ${dafs.filter(d=>!isYY(d)).length} dafs · Kitzur Yalkut Yosef, simanim 1–58`;
   $("status").style.color = ok ? "var(--official)" : "var(--ai)";
   $("offline").style.display = ok ? "none" : "";
   $("offlineMsg").textContent = msg;
