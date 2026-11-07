@@ -43,27 +43,34 @@ def bold_runs(en: str) -> list:
 
 
 def sefaria_only(en: str, chunks: list) -> list:
-    """Every meaning must be copied exactly from Sefaria's bold English, in order, no overlap."""
-    runs, r, pos, bad = bold_runs(en), 0, 0, []
+    """Every meaning must be copied exactly from Sefaria's bold English, each bold word used once.
+
+    Pieces are looked for in order first. When Sefaria's English order is flipped
+    against the Hebrew, a piece may come from earlier in the line, as long as it
+    doesn't reuse bold words. docs/scan/index.html segPieces() does the same search.
+    """
+    runs, r, pos, used, bad = bold_runs(en), 0, 0, [], []
+
+    def hits(m, i):
+        for mt in re.finditer(re.escape(m), runs[i], re.I):
+            a, b = mt.start(), mt.end()
+            if (a == 0 or not runs[i][a - 1].isalnum()) and (b == len(runs[i]) or not runs[i][b].isalnum()):
+                if not any(u[0] == i and a < u[2] and u[1] < b for u in used):
+                    yield a, b
+
     for c in chunks:
         m = c[1] if len(c) > 1 and isinstance(c[1], str) else ""
         if not m:
             continue
-        found, r0, pos0 = False, r, pos
-        while r < len(runs):
-            for mt in re.finditer(re.escape(m), runs[r], re.I):
-                a, b = mt.start(), mt.end()
-                if a < pos:
-                    continue
-                if (a == 0 or not runs[r][a - 1].isalnum()) and (b == len(runs[r]) or not runs[r][b].isalnum()):
-                    pos, found = b, True
-                    break
-            if found:
-                break
-            r, pos = r + 1, 0
-        if not found:
-            bad.append(f"not Sefaria's bold text (or out of order): {m!r}")
-            r, pos = r0, pos0
+        hit = next(((i, a, b) for i in range(r, len(runs)) for a, b in hits(m, i) if i > r or a >= pos), None)
+        if hit:
+            r, pos = hit[0], hit[2]
+        else:
+            hit = next(((i, a, b) for i in range(len(runs)) for a, b in hits(m, i)), None)
+        if not hit:
+            bad.append(f"not Sefaria's bold text (or bold words used twice): {m!r}")
+            continue
+        used.append(hit)
     return bad
 
 
