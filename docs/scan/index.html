@@ -627,6 +627,7 @@ function levelView(p, m, lv){
   return {...base, en:(lo>0?"… ":"")+wordsHtml(ws.slice(lo, hi+1), true)+(hi<ws.length-1?" …":"")};
 }
 
+let sheetLv = Math.min(LEVELS.length-1, Math.max(0, +recall("gs.sheetlv")||0));   // the tap sheet's level stays as you move from word to word
 function showWord(span, word, segIdx){
   document.querySelectorAll(".w.sel").forEach(x=>x.classList.remove("sel"));
   const p = span.dataset.p!=null ? +span.dataset.p : null;
@@ -634,11 +635,12 @@ function showWord(span, word, segIdx){
   if(p!=null) for(let q=m.a;q<=m.b;q++){ const el=document.querySelector(`#text .w[data-p="${q}"]`); if(el) el.classList.add("sel"); }
   else span.classList.add("sel");
   $("sWord").textContent = m.text;
-  $("sGloss").innerHTML = p!=null ? levelView(p,m,0).en : "—";
+  const lv = OPTS.levels && p!=null ? sheetLv : 0;
+  $("sGloss").innerHTML = p!=null ? levelView(p,m,lv).en : "—";
   $("sLv").innerHTML = "";
-  if(OPTS.levels && p!=null) LEVELS.forEach((name,lv)=>{
-    const bt=document.createElement("button"); bt.textContent=name; bt.className=lv?"":"on";
-    bt.onclick=()=>{ $("sGloss").innerHTML=levelView(p,m,lv).en; [...$("sLv").children].forEach((x,i)=>x.classList.toggle("on",i===lv)); };
+  if(OPTS.levels && p!=null) LEVELS.forEach((name,i)=>{
+    const bt=document.createElement("button"); bt.textContent=name; bt.className=i===lv?"on":"";
+    bt.onclick=()=>{ sheetLv=i; remember("gs.sheetlv",String(i)); $("sGloss").innerHTML=levelView(p,m,i).en; [...$("sLv").children].forEach((x,j)=>x.classList.toggle("on",j===i)); };
     $("sLv").appendChild(bt);
   });
   $("sBadge").textContent = !m.spot ? "Not lined up with Sefaria yet · see the line below" : m.gloss ? "Sefaria · literal" : "Sefaria has no word of its own here · tap Filled in to see the sentence";
@@ -1155,7 +1157,7 @@ const DEV_VIEWS = [
   {k:"pen",   t:"Pen (~5 cm, 4–6 words)", cm:5},
   {k:"close", t:"Pen on the page (~3 cm)", cm:3},
 ];
-const DEV = {view:"phone", state:"home", p:null, mode:"phrase", lvl:0, lvl0:0, big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
+const DEV = {view:"phone", state:"home", p:null, mode:"phrase", lvl:0, big:false, menu:null, sel:0, daf:0, stream:null, raf:0, ready:false, sharp:[]};
 const devEl = id => document.getElementById(id);
 
 function openDevice(p){
@@ -1210,7 +1212,6 @@ function devRender(){
   lastLoc=s; remember("gs.last", s); remember("gs.devp", p);
 }
 function devStep(dir){
-  DEV.lvl=DEV.lvl0;
   if(DEV.mode==="word") DEV.p=Math.min(tokens.length-1, Math.max(0, DEV.p+dir));
   else{
     const m=meaningAt(DEV.p, tokenWord(DEV.p));
@@ -1226,7 +1227,6 @@ function devMenuItems(){
   return [
     {t: "How to use", f:()=>{ DEV.menu="help"; devRenderMenu(); }},
     {t: DEV.mode==="phrase" ? "Step: phrase by phrase" : "Step: word by word", f:()=>{ DEV.mode = DEV.mode==="phrase"?"word":"phrase"; remember("gs.devmode",DEV.mode); devRenderMenu(); }},
-    {t: "Start each word at: "+LEVELS[DEV.lvl0], f:()=>{ DEV.lvl0=(DEV.lvl0+1)%LEVELS.length; DEV.lvl=DEV.lvl0; remember("gs.devlvl",String(DEV.lvl0)); devRenderMenu(); }},
     {t: "Go to a daf…", f:()=>{ DEV.menu="daf"; DEV.daf=Math.max(0, DEV.p!=null ? dafs.indexOf(segs[tokSeg[DEV.p]][0]) : 0); devRenderMenu(); }},
     {t: "Camera sees: "+(DEV_VIEWS.find(x=>x.k===DEV.view)||DEV_VIEWS[0]).t, f:()=>{ const i=DEV_VIEWS.findIndex(x=>x.k===DEV.view); DEV.view=DEV_VIEWS[(i+1)%DEV_VIEWS.length].k; remember("gs.devview",DEV.view); devRenderMenu(); }},
     {t: "AF/AE lock: "+(afLock?"on":"off"), f:async()=>{ const t=DEV.stream && DEV.stream.getVideoTracks()[0]; afDist=null; await setAfLock(!afLock, t); devRenderMenu(); }},
@@ -1246,8 +1246,8 @@ function devRenderMenu(){
     el.innerHTML=`<div class="dmt">How to use</div>
       <div class="dmi">● hold over the page: scan, and it finds your place</div>
       <div class="dmi">◀ ▶ step word by word or phrase by phrase</div>
-      <div class="dmi">● tap: more of the translation: Word → Filled in (Sefaria's added words in gray) → Sefaria</div>
-      <div class="dmi">☰ menu: go to a daf, text size, start level</div>
+      <div class="dmi">● tap: Word → Filled in (Sefaria's added words in gray) → Sefaria. It stays on that level as you step</div>
+      <div class="dmi">☰ menu: go to a daf, text size, AF/AE lock (camera stops refocusing)</div>
       <div class="dmh">All English is Sefaria's · ● or ☰ to go back</div>`;
     devStatus("Help"); return;
   }
@@ -1263,7 +1263,7 @@ function devMenuMove(dir){
 }
 function devMenuSelect(){
   if(DEV.menu==="help"){ DEV.menu=null; devRenderMenu(); return; }
-  if(DEV.menu==="daf"){ DEV.menu=null; const s=segs.findIndex(x=>x[0]===dafs[DEV.daf]); DEV.p=segStart[s]; DEV.lvl=DEV.lvl0; devShow("reader"); return; }
+  if(DEV.menu==="daf"){ DEV.menu=null; const s=segs.findIndex(x=>x[0]===dafs[DEV.daf]); DEV.p=segStart[s]; devShow("reader"); return; }
   devMenuItems()[DEV.sel].f();
 }
 
@@ -1335,7 +1335,7 @@ async function devCapture(){
     const w=wordAt(data.words||[], point.x, point.y);
     let p = w ? alignWord(data.words, w, res) : null;
     if(p==null) p=segStart[res.picks[0][1]];      // place found, word unclear: start of that spot
-    DEV.p=p; DEV.lvl=DEV.lvl0; devShow("reader");
+    DEV.p=p; devShow("reader");
     devEl("dSub").textContent = [devEl("dSub").textContent, DEV.saw+" · "+confLevel(res).toLowerCase()+" confidence"].filter(Boolean).join(" · ");
   }catch(e){ console.error(e); devShow(DEV.p!=null?"reader":"home"); }
 }
@@ -1346,7 +1346,7 @@ function devBack(){ if(DEV.state==="reader") devStep(-1); else if(DEV.state==="m
 function devMid(){
   if(DEV.state==="scan") devCapture();
   else if(DEV.state==="menu") devMenuSelect();
-  else if(DEV.state==="reader" && OPTS.levels){ DEV.lvl=(DEV.lvl+1)%LEVELS.length; devRender(); }
+  else if(DEV.state==="reader" && OPTS.levels){ DEV.lvl=(DEV.lvl+1)%LEVELS.length; remember("gs.devlvl",String(DEV.lvl)); devRender(); }
   else if(DEV.state==="home" || DEV.state==="reader") devShow("scan");
 }
 function devMenuBtn(){
@@ -1409,7 +1409,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v24";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v25";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
@@ -1429,7 +1429,7 @@ async function boot(){
   $("status").textContent = `${segs.length.toLocaleString()} lines · ${inv.size.toLocaleString()} words`;
   renderHistList(); syncScans();
   DEV.mode = recall("gs.devmode")==="word" ? "word" : "phrase"; DEV.big = !!recall("gs.devbig");
-  DEV.lvl = DEV.lvl0 = Math.min(LEVELS.length-1, Math.max(0, +recall("gs.devlvl")||0));
+  DEV.lvl = Math.min(LEVELS.length-1, Math.max(0, +recall("gs.devlvl")||0));
   if(DEV_VIEWS.some(x=>x.k===recall("gs.devview"))) DEV.view=recall("gs.devview");
   { const dp=+recall("gs.devp"); if(recall("gs.devp")!=null && tokSeg[dp]!=null) DEV.p=dp; }
   if(OPTS.devStart) openDevice();
