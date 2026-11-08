@@ -110,6 +110,8 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
 .dhe{direction:rtl;font-family:"Times New Roman",serif;font-size:36px;font-weight:700;line-height:1.25}
 .den{font:700 21px -apple-system,sans-serif;margin-top:4px}
 .dsub{font:12px -apple-system,sans-serif;color:#b9bfcc;margin-top:4px;direction:auto}
+.dnear{font:13px -apple-system,sans-serif;color:#7d8590;margin-top:5px}.dnear b{color:#c9ced8;font-weight:600}
+#dLoc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;margin-right:10px}.dstat span:last-child{flex-shrink:0}
 .dctx{position:absolute;bottom:0;left:0;right:0;direction:rtl;font-family:"Times New Roman",serif;font-size:14px;color:#8d94a3;padding:5px 9px;border-top:1px solid #1a2130;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dctx mark{background:#2b4a7a;color:#fff;border-radius:3px;padding:0 2px}
 .dscreen.big .dhe{font-size:46px}.dscreen.big .den{font-size:26px}
@@ -282,6 +284,7 @@ pre{white-space:pre-wrap;direction:rtl;text-align:right;font-size:14px;backgroun
         <div id="dView" class="dpane">
           <div id="dHe" class="dhe"></div>
           <div id="dEn" class="den"></div>
+          <div id="dNear" class="dnear"></div>
           <div id="dSub" class="dsub"></div>
           <div id="dLv" class="dlv"></div>
           <div id="dCtx" class="dctx"></div>
@@ -544,18 +547,58 @@ function renderRange(a,b,hits){
 
 // The phrase a word belongs to, with its meaning in this exact spot
 // (phrases/<tractate>.json): Sefaria's bold English, lined up with the Hebrew. No other source.
+// Word groups of a line. A word with no English of its own never shows "—": it rides along
+// with a neighbour. את, קא, של … join the word after them (את שמע = "Shema"); any other
+// joins the phrase before it. Display rule only: the meanings themselves are untouched.
+const JOIN_NEXT = new Set(["את","ואת","קא","של","על","אל"]);
+const groupCache = new Map();
+function segGroups(s){
+  if(groupCache.has(s)) return groupCache.get(s);
+  const ch=(D.chunks||{})[s];
+  if(!ch){ groupCache.set(s,null); return null; }
+  const out=[]; let a=segStart[s], pend=null;
+  ch.forEach(([n,g],k)=>{
+    const x={a, b:a+n-1, gloss:g, k, joined:false}; a+=n;
+    if(g){
+      if(pend){ x.a=pend.a; x.joined=true; pend=null; }
+      out.push(x);
+    }else if(pend) pend.b=x.b;
+    else if(JOIN_NEXT.has(matchKey(tokenWord(x.a))) || !out.length) pend={a:x.a, b:x.b};
+    else { const l=out[out.length-1]; l.b=x.b; l.joined=true; }
+  });
+  if(pend){ if(out.length){ const l=out[out.length-1]; l.b=pend.b; l.joined=true; } else out.push({a:pend.a, b:pend.b, gloss:"", k:-1, joined:false}); }
+  groupCache.set(s,out); return out;
+}
 function meaningAt(p, word){
-  const s=tokSeg[p], ch=p!=null && (D.chunks||{})[s];
-  if(ch){
-    let i=p-segStart[s], a=segStart[s], k=0;
-    for(const [n,g] of ch){
-      if(i<n) return {text:heRange(a,a+n-1), gloss:g, spot:true, a, b:a+n-1, k};
-      i-=n; a+=n; k++;
-    }
-  }
+  const s=tokSeg[p], gs=p!=null && segGroups(s);
+  if(gs){ const x=gs.find(x=>x.a<=p && p<=x.b); if(x) return {text:heRange(x.a,x.b), gloss:x.gloss, spot:true, a:x.a, b:x.b, k:x.k, joined:x.joined}; }
   return {text:word.replace(/^[״"]+|[״"]+$/g,""), gloss:"", spot:false, a:p, b:p};
 }
 
+// Sefaria's pieces keep their sentence capitals ("Until", "The Rabbis"). Shown alone, a piece's
+// first letter is lowered when that word is mostly written lowercase mid-sentence in Sefaria's
+// own English, so names and terms (Rabbi, Shema, God) keep theirs. Only the one letter changes.
+let lowerStats=null;
+function fixCap(t){
+  if(!t || !/^[A-Z]/.test(t)) return t;
+  if(!lowerStats){
+    lowerStats=new Map();
+    for(const sg of segs){ if(isYY(sg[0])) continue;
+      const ws=(sg[2]||"").replace(/<[^>]+>/g," ").split(/\s+/);
+      for(let i=1;i<ws.length;i++){
+        if(/[.?!:"“]$/.test(ws[i-1])) continue;
+        const w=ws[i].replace(/[^A-Za-z]/g,""); if(!w) continue;
+        const k=w.toLowerCase(), v=lowerStats.get(k)||[0,0];
+        v[/^[a-z]/.test(w)?0:1]++; lowerStats.set(k,v);
+      }
+    }
+  }
+  const first=t.split(/\s/)[0].replace(/[^A-Za-z]/g,"").toLowerCase(), v=lowerStats.get(first);
+  return v && v[0]>v[1] ? t[0].toLowerCase()+t.slice(1) : t;
+}
+
+// the word's own chunk meaning, before any joining ("" for את etc.)
+function chunkGlossAt(s,p){ let i=p-segStart[s]; for(const [n,g] of D.chunks[s]||[]){ if(i<n) return g; i-=n; } return ""; }
 function heRange(a,b){ const ws=[]; for(let q=a;q<=b;q++) ws.push(tokenWord(q).replace(/^[״"]+|[״"]+$/g,"")); return ws.join(" "); }
 
 // ── Translation levels, all Sefaria text: 0 word · 1 filled in · 2 Sefaria ──
@@ -620,7 +663,7 @@ const endsSentence = w => /[.?!:;]["”’)\]]*$/.test(w);
 const markPiece = (t,h) => esc(t.slice(0,h.a))+"<mark>"+esc(t.slice(h.a,h.b))+"</mark>"+esc(t.slice(h.b));
 // {en: html, a, b, he} for word/phrase m (from meaningAt) at level lv
 function levelView(p, m, lv){
-  const s=tokSeg[p], base={en:m.gloss?esc(m.gloss):"—", a:m.a, b:m.b, he:m.text};
+  const s=tokSeg[p], base={en:m.gloss?esc(fixCap(m.gloss)):"—", a:m.a, b:m.b, he:m.text};
   const {pieces}=segPieces(s), h=pieces[m.k];
   if(!lv) return base;
   const ws=segWords(s, h);
@@ -1207,17 +1250,20 @@ function devStatus(t){ devEl("dLoc").textContent=t; }
 function devRender(){
   const p=DEV.p, s=tokSeg[p], word=tokenWord(p), m=meaningAt(p, word);
   let a=m.a, b=m.b, he=m.text, en=m.gloss, sub="";
-  if(DEV.mode==="word"){
+  if(DEV.mode==="word" && !(m.joined && (D.chunks[s]||[]).length && !chunkGlossAt(s,p))){
     a=b=p; he=word.replace(/^[״"]+|[״"]+$/g,"");
     if(m.a!==m.b) sub="part of: "+m.text;
   }
   const lv = OPTS.levels ? DEV.lvl : 0;
   const enHtml=levelView(p, m, lv).en;
-  if(!lv && !en && m.spot) sub=[sub, "Sefaria has no word of its own here · tap ● to see it filled in"].filter(Boolean).join(" · ");
   const ab=OPTS.abbr && abbrFor(word);
   devEl("dHe").textContent=he;
   devEl("dEn").innerHTML=enHtml;
   devEl("dEn").className="den lv"+lv;
+  // the pieces before and after, so a choppy literal piece reads in its flow
+  const gs=segGroups(s), gi=gs ? gs.findIndex(x=>x.a<=p && p<=x.b) : -1;
+  const nb=j=>gs && gs[j] && gs[j].gloss ? esc(fixCap(gs[j].gloss)) : "";
+  devEl("dNear").innerHTML = !lv && gi>=0 ? [nb(gi-1), "<b>"+(en?esc(fixCap(en)):"—")+"</b>", nb(gi+1)].filter(Boolean).join(" · ") : "";
   devEl("dLv").textContent = OPTS.levels ? LEVELS.map((x,i)=>i===lv?"●":"○").join(" ")+"  "+levelName(lv, s).toUpperCase()+(lv<LEVELS.length-1?" · tap ● for more":" · tap ● for the word") : "";
   devEl("dSub").textContent=[ab?"= "+ab:"", sub, m.spot?"":"not lined up yet"].filter(Boolean).join(" · ");
   devEl("dScreen").classList.toggle("big", DEV.big);
@@ -1429,7 +1475,7 @@ function focusLoop(){
 
 $("btnPen").onclick=()=>{ const sel=document.querySelector("#text .w.sel[data-p]") || document.querySelector("#text .w[data-p]"); if(sel) openDevice(+sel.dataset.p); };
 // ── Offline ───────────────────────────────────────────────────────────────
-const CACHE_NAME = "gemara-scan-v26";   // keep in step with sw.js
+const CACHE_NAME = "gemara-scan-v27";   // keep in step with sw.js
 const OFFLINE_FILES = 10;              // length of FILES in sw.js
 async function boot(){
   $("optAbbr").checked=OPTS.abbr; $("optHist").checked=OPTS.hist;
